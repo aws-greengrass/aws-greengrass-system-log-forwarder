@@ -1,17 +1,61 @@
-## My Project
+# aws.greengrass.SystemLogForwarder
 
-TODO: Fill this README out!
+A generic component which uploads system logs to CloudWatch.
 
-Be sure to:
+This works by publishing system log messages on the IoT Core MQTT topic
+`gglite/<thing-name>/logs`, which will be configured to forward the logs to
+CloudWatch via an IoT Rule.
 
-* Change the title in this README
-* Edit your repository description on GitHub
+### Build
 
-## Security
+If you're building and installing GG-Lite, this component builds to a
+locally-deployable state as part of that process. See
+[the build+install guide for GG-Lite](../docs/INSTALL.md).
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+When installing GG-lite, you will get a `components` directory in your install
+dir. `components` contains the artifacts and recipes directory structure that
+can be used by local deployments:
 
-## License
+```
+components
+├── artifacts
+│   └── aws.greengrass.SystemLogForwarder
+│       └── x.y.z
+│           └── cloud-logger
+└── recipes
+    └── aws.greengrass.SystemLogForwarder-x.y.z.yaml
+```
 
-This project is licensed under the Apache-2.0 License.
+### Prerequisites
 
+Before deploying this component, you should set up the cloud infrastructure to
+receive the output from this component.
+
+1. Follow the linked instructions to
+   [create a CloudWatch log group.](https://docs.aws.amazon.com/iot/latest/developerguide/uploading-logs-rules-action-procedure.html#uploading-logs-rules-setup-log-group)
+2. Follow the linked instructions to
+   [create a topic rule](https://docs.aws.amazon.com/iot/latest/developerguide/uploading-logs-rules-action-procedure.html#uploading-logs-rules-setup-topic-rule),
+   but with the following important notes:
+   - This component outputs to the MQTT topic `gglite/<thing-name>/logs`, so
+     when entering your SQL statement, use e.g. `gglite/ExampleGGDevice/logs`
+     instead of `$aws/rules/things/thing_name/logs`.
+   - When entering the rule action, **do not** enable batch mode.
+
+### Local Deploy
+
+Run from your install dir, specifying the current version of SystemLogForwarder in
+place of x.y.z
+
+```
+./bin/ggl-cli deploy --recipe-dir components/recipes --artifacts-dir components/artifacts --add-component aws.greengrass.SystemLogForwarder=x.y.z
+```
+
+Check the nucleus logs to verify that the deployment is SUCCEEDED.
+
+### Check the component logs
+
+After the deployment completes, read the logs from the component:
+
+```
+journalctl -f -u ggl.aws.greengrass.SystemLogForwarder.service
+```
