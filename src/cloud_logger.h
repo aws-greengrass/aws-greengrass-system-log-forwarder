@@ -5,13 +5,14 @@
 #ifndef CLOUD_LOGGER_H
 #define CLOUD_LOGGER_H
 
-#include <ggl/alloc.h>
+#include <ggl/arena.h>
 #include <ggl/error.h>
-#include <ggl/vector.h>
 #include <stdio.h>
 
 #define MAX_LINE_LENGTH (2048)
+#define THING_NAME_MAX_LENGTH (128)
+#define GGL_IPC_MAX_SVCUID_LEN (16)
 
-GglError read_log(FILE *fp, GglObjVec *filling, GglAlloc *alloc);
+GglError read_log(FILE *fp, GglBuffer *filling, GglArena *alloc);
 
 #endif
