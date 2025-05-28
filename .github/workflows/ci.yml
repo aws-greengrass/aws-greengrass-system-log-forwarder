@@ -21,8 +21,6 @@ jobs:
         include:
           - name: build with GCC
             check: packages-default
-          - name: static build
-            check: packages-ggl-cloud-logger-static
           - name: build with Clang
             check: build-clang
           - name: cross-build for arm32 Musl

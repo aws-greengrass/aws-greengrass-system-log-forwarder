@@ -8,6 +8,7 @@
 #define CLOUD_LOGGER_H
 
 #include <ggl/arena.h>
+#include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <stdio.h>
 

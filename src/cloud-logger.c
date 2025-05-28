@@ -15,7 +15,6 @@
 #include <ggl/object.h>
 #include <ggl/sdk.h>
 #include <ggl/vector.h>
-#include <limits.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/types.h>
