@@ -1,6 +1,5 @@
 # aws-greengrass-system-log-forwarder - AWS Greengrass component for forwarding
 # logs to CloudWatch.
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -170,11 +169,11 @@ foreach(index RANGE ${FC_DEPS_INDEX_MAX})
   string(JSON dep_name MEMBER "${FC_DEPS_JSON}" ${index})
   string(JSON dep_url GET "${FC_DEPS_JSON}" "${dep_name}" url)
   string(JSON dep_rev GET "${FC_DEPS_JSON}" "${dep_name}" rev)
-  FetchContent_Declare(
+  fetchcontent_declare(
     "${dep_name}"
     GIT_REPOSITORY "${dep_url}"
     GIT_TAG "${dep_rev}")
-  FetchContent_MakeAvailable(${dep_name})
+  fetchcontent_makeavailable(${dep_name})
 endforeach()
 
 #

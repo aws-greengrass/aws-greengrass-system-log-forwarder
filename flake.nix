@@ -81,17 +81,16 @@
             meta = defaultMeta;
           };
 
-        packages.ggl-cloud-logger-static = { pkgsStatic }: pkgsStatic.ggl-cloud-logger;
-
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, systemdLibs, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
                 nativeBuildInputs = [ pkg-config clang-tools ];
+                buildInputs = [ systemdLibs ];
                 buildPhase = ''
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
-                    -D CMAKE_BUILD_TYPE=Debug \
+                    -D CMAKE_BUILD_TYPE=Debug ${toString (fetchContentFlags pkgs)}\
                     rm $out/CMakeFiles/CMakeConfigureLog.yaml
                 '';
                 dontUnpack = true;

@@ -1,6 +1,5 @@
 // aws-greengrass-system-log-forwarder - AWS Greengrass component for forwarding
 // logs to CloudWatch.
-//
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -15,7 +14,6 @@
 #include <ggl/object.h>
 #include <ggl/sdk.h>
 #include <ggl/vector.h>
-#include <limits.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/types.h>
