@@ -85,10 +85,10 @@
 
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, git, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
-                nativeBuildInputs = [ pkg-config clang-tools ];
+                nativeBuildInputs = [ pkg-config clang-tools git ];
                 buildPhase = ''
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
                     -D CMAKE_BUILD_TYPE=Debug \

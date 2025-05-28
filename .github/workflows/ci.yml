@@ -59,4 +59,3 @@ jobs:
           log-lines = 0
           EOF
           nix build -L .#checks.x86_64-linux.${{ matrix.check }}
-          
