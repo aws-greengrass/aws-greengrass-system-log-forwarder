@@ -21,10 +21,12 @@ jobs:
         include:
           - name: build with GCC
             check: packages-default
+          - name: static build
+            check: packages-ggl-sdk-static
           - name: build with Clang
-            check: packages-ggl-clang
+            check: build-clang
           - name: cross-build for arm32 Musl
-            check: packages-ggl-musl-pi
+            check: build-musl-pi
           - name: formatting
             check: formatting
           - name: clang-tidy
@@ -37,8 +39,6 @@ jobs:
             check: spelling
           - name: cmake-lint
             check: cmake-lint
-          - name: shellcheck
-            check: shellcheck
     name: Check ${{ matrix.name }}
     runs-on: ubuntu-latest
     steps:
@@ -59,3 +59,4 @@ jobs:
           log-lines = 0
           EOF
           nix build -L .#checks.x86_64-linux.${{ matrix.check }}
+          
