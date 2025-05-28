@@ -1,21 +1,24 @@
-// aws-greengrass-lite - AWS IoT Greengrass runtime for constrained devices
+// aws-greengrass-system-log-forwarder - AWS Greengrass component for forwarding
+// logs to CloudWatch.
+//
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <sys/types.h>
-#include <cloud_logger.h>
-#include <ggipc/client.h>
+#include "cloud_logger.h"
+#include <ggl/arena.h>
 #include <ggl/buffer.h>
-#include <ggl/bump_alloc.h>
-#include <ggl/constants.h>
 #include <ggl/error.h>
+#include <ggl/ipc/client.h>
 #include <ggl/json_encode.h>
 #include <ggl/log.h>
+#include <ggl/map.h>
 #include <ggl/object.h>
+#include <ggl/sdk.h>
 #include <ggl/vector.h>
 #include <limits.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,21 +29,13 @@
 
 typedef struct {
     uint8_t mem[UPLOAD_MAX_BUFFER];
-    GglObject ids_array[UPLOAD_MAX_LINES];
-    GglObjVec upload;
+    GglBuffer ids_array[UPLOAD_MAX_LINES];
+    GglBuffer upload;
 } MEMORY;
 
-static MEMORY space_one
-    = { .mem = { 0 },
-        .ids_array = {},
-        .upload = { .list = { .items = space_one.ids_array, .len = 0 },
-                    .capacity = (size_t) UPLOAD_MAX_LINES } };
+static MEMORY space_one = { .mem = { 0 }, .ids_array = { 0 }, .upload = { 0 } };
 
-static MEMORY space_two
-    = { .mem = { 0 },
-        .ids_array = {},
-        .upload = { .list = { .items = space_one.ids_array, .len = 0 },
-                    .capacity = (size_t) UPLOAD_MAX_LINES } };
+static MEMORY space_two = { .mem = { 0 }, .ids_array = {}, .upload = { 0 } };
 
 static MEMORY *filling = &space_one;
 static MEMORY *draining = NULL;
@@ -60,9 +55,9 @@ static void *drain_logs_thread(void *args) {
 
     uint8_t publish_topic
         [sizeof("gglite/") + THING_NAME_MAX_LENGTH
-         + sizeof("/logs"
-         )]; // TODO: Make this configurable and recommend a basic ingest topic.
-             // Keep the authz in recipe.yml in sync
+         + sizeof("/logs")]; // TODO: Make this configurable and
+                             // recommend a basic ingest topic. Keep
+                             // the authz in recipe.yml in sync
     GglByteVec publish_topic_vec = GGL_BYTE_VEC(publish_topic);
     GglError ret = ggl_byte_vec_append(&publish_topic_vec, GGL_STR("gglite/"));
     ggl_byte_vec_chain_append(
@@ -89,15 +84,7 @@ static void *drain_logs_thread(void *args) {
         return NULL;
     }
 
-    // Fetch the SVCUID
-    static uint8_t resp_mem[PATH_MAX];
-    GglBuffer resp = GGL_BUF(resp_mem);
-    resp.len = GGL_IPC_MAX_SVCUID_LEN;
-
-    int conn = -1;
-    ret = ggipc_connect_auth(
-        ggl_buffer_from_null_term(socket_path), &resp, &conn
-    );
+    ret = ggipc_connect();
     if (ret != GGL_ERR_OK) {
         return NULL;
     }
@@ -107,7 +94,7 @@ static void *drain_logs_thread(void *args) {
 
         MEMORY *current = draining;
 
-        for (size_t index = 0; index < current->upload.list.len; index++) {
+        for (size_t index = 0; index < current->upload.len; index++) {
             // TODO: validate that log messages are correct format (UTF8)
             static uint8_t
                 json_encode_memory[MAX_LINE_LENGTH + 30]; // TODO: figure out
@@ -115,24 +102,19 @@ static void *drain_logs_thread(void *args) {
                                                           // most/all logs
             GglBuffer json_encoded_buf = GGL_BUF(json_encode_memory);
             ret = ggl_json_encode(
-                GGL_OBJ_MAP(GGL_MAP(
-                    { GGL_STR("message"),
-                      GGL_OBJ_BUF(current->upload.list.items[index].buf) }
+                ggl_obj_map(GGL_MAP(
+                    ggl_kv(GGL_STR("message"), ggl_obj_buf(current->upload))
                 )),
                 &json_encoded_buf
             );
 
             static uint8_t memory_for_base64_encode
-                [MAX_LINE_LENGTH * 2]; // TODO: figure out the right size for
-                                       // most/all logs
-            GglBumpAlloc base64_encode_alloc
-                = ggl_bump_alloc_init(GGL_BUF(memory_for_base64_encode));
+                [MAX_LINE_LENGTH * 2]; // TODO: figure out the right
+                                       // size for most/all logs
+            GglArena base64_encode_alloc
+                = ggl_arena_init(GGL_BUF(memory_for_base64_encode));
             ret = ggipc_publish_to_iot_core(
-                conn,
-                publish_topic_vec.buf,
-                json_encoded_buf,
-                0,
-                &base64_encode_alloc.alloc
+                publish_topic_vec.buf, json_encoded_buf, 0, base64_encode_alloc
             );
             if (ret != GGL_ERR_OK) {
                 GGL_LOGE(
@@ -165,12 +147,11 @@ static void *read_logs_thread(void *args) {
 
     while (1) {
         // Reset and reinitialize for reading fresh logs
-        GglBumpAlloc mem_bump_alloc
-            = ggl_bump_alloc_init(GGL_BUF(filling->mem));
-        filling->upload.list.len = 0;
+        GglArena mem_arena = ggl_arena_init(GGL_BUF(filling->mem));
+        filling->upload.len = 0;
 
         // fetch the logs from journalctl
-        GglError ret = read_log(fp, &filling->upload, &mem_bump_alloc.alloc);
+        GglError ret = read_log(fp, &filling->upload, &mem_arena);
         if (ret != GGL_ERR_OK) {
             GGL_LOGE("Error reading from log: %s", ggl_strerror(ret));
             return NULL;
@@ -191,6 +172,8 @@ static void *read_logs_thread(void *args) {
 
 int main(void) {
     sem_init(&drain, 0, 0);
+
+    ggl_sdk_init();
 
     pthread_t read_thread = { 0 };
     int sys_ret = pthread_create(&read_thread, NULL, read_logs_thread, NULL);

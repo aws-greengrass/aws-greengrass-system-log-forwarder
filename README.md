@@ -43,8 +43,8 @@ receive the output from this component.
 
 ### Local Deploy
 
-Run from your install dir, specifying the current version of SystemLogForwarder in
-place of x.y.z
+Run from your install dir, specifying the current version of SystemLogForwarder
+in place of x.y.z
 
 ```
 ./bin/ggl-cli deploy --recipe-dir components/recipes --artifacts-dir components/artifacts --add-component aws.greengrass.SystemLogForwarder=x.y.z
