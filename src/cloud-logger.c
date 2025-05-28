@@ -1,4 +1,6 @@
-// aws-greengrass-lite - AWS IoT Greengrass runtime for constrained devices
+// aws-greengrass-system-log-forwarder - AWS Greengrass component for forwarding
+// logs to CloudWatch.
+//
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 

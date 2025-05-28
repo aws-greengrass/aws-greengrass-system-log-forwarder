@@ -2,7 +2,6 @@
 # logs to CloudWatch.
 #
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.22)
@@ -201,11 +200,12 @@ foreach(src ${SRCS})
     PROPERTY COMPILE_FLAGS "-frandom-seed=${src}")
 endforeach()
 
-add_executable(ggl-cloud-logger ${SRCS})
+add_executable(gg-sys-log-forwarder ${SRCS})
 
-target_compile_definitions(ggl-cloud-logger
-                           PRIVATE "GGL_MODULE=(\"ggl-cloud-logger\")")
+target_compile_definitions(gg-sys-log-forwarder
+                           PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
 
-target_link_libraries(ggl-cloud-logger PRIVATE ggl-sdk PkgConfig::libsystemd)
+target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk
+                                                   PkgConfig::libsystemd)
 
-install(TARGETS ggl-cloud-logger)
+install(TARGETS gg-sys-log-forwarder)
