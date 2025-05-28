@@ -85,15 +85,16 @@
 
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, git, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
-                nativeBuildInputs = [ pkg-config clang-tools git ];
+                nativeBuildInputs = [ pkg-config clang-tools  ];
                 buildPhase = ''
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
                     -D CMAKE_BUILD_TYPE=Debug \
                     rm $out/CMakeFiles/CMakeConfigureLog.yaml
                 '';
+                cmakeFlags = fetchContentFlags pkgs;
                 dontUnpack = true;
                 dontPatch = true;
                 dontConfigure = true;
