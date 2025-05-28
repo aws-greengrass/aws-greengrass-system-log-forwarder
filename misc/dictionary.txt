@@ -52,7 +52,6 @@ RPATH
 setuptools
 SRCS
 stdenv
-Stdenv
 SVCUID
 unstrippable
 Wbidi
@@ -60,7 +59,6 @@ Wconversion
 Wdate
 Wenum
 Werror
-WERROR
 Wextra
 Wformat
 Wimplicit
