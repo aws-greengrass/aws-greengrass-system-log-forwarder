@@ -6,7 +6,6 @@
 //! Exactly one thread may call log_store_add to add entries, and exactly one
 //! thread may call log_store_get/log_store_remove to remove entries.
 
-#include <assert.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <stdbool.h>

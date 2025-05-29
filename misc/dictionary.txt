@@ -33,6 +33,7 @@ iwyu
 journalctl
 libsystemd
 LOGI
+LOGW
 MAKEFLAGS
 MINSIZEREL
 mqttproxy
