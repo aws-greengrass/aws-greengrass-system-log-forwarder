@@ -53,7 +53,7 @@ static GglError initialize_ringbuf_state(void) {
         return GGL_ERR_FAILURE;
     }
 
-    // Here ftruncate may enter a retriable error state so retry as needed
+    // Here ftruncate may enter a transient state so retry as needed
     while (1) {
         int ret = ftruncate(fd, (ssize_t) TOTAL_MEM);
         if (ret == EINTR) {

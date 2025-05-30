@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// TODO: Prefix the function name according to the name of the component
 // Add a log entry from the producer thread
 GglError log_store_add(GglBuffer log, uint64_t timestamp);
 
