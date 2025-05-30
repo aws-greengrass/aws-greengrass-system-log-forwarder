@@ -58,7 +58,7 @@ static GglError initialize_ringbuf_state(void) {
         int ret = ftruncate(fd, (ssize_t) TOTAL_MEM);
         if (ret != 0) {
             if (errno == EINTR) {
-                GGL_LOGW("ftruncate blocked with %d. Retrying..", errno);
+                GGL_LOGW("ftruncate interrupted. Retrying.");
                 continue;
             }
             GGL_LOGE("ftruncate failed on memfd: %d.", errno);
