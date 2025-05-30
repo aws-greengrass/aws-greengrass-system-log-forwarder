@@ -52,10 +52,21 @@ static GglError initialize_ringbuf_state(void) {
         GGL_LOGE("Failed to create memfd: %d.", errno);
         return GGL_ERR_FAILURE;
     }
-    int ret = ftruncate(fd, (ssize_t) TOTAL_MEM);
-    if (ret != 0) {
-        GGL_LOGE("ftruncate failed on memfd: %d.", errno);
-        return GGL_ERR_FAILURE;
+
+    // Here ftruncate may enter a retriable error state so retry as needed
+    while (1) {
+        int ret = ftruncate(fd, (ssize_t) TOTAL_MEM);
+        if (ret == EINTR) {
+            GGL_LOGW("ftruncate blocked with %d. Retrying..", ret);
+            continue;
+        }
+
+        if (ret != 0) {
+            GGL_LOGE("ftruncate failed on memfd: %d.", errno);
+            return GGL_ERR_FAILURE;
+        }
+
+        break;
     }
 
     void *mmap_ret = mmap(
