@@ -4,12 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "system-log-forwarder.h"
-#include "ggl/log.h"
-#include "ggl/utils.h"
 #include "ring_buffer.h"
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <ggl/log.h>
 #include <ggl/sdk.h>
+#include <ggl/utils.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
@@ -41,7 +41,7 @@ static void *consumer_thread(void *arg) {
 static void *producer_thread(void *arg) {
     (void) arg;
 
-    const char *cmd = "journalctl -f --no-pager";
+    const char *cmd = "journalctl -mf --no-pager";
 
     FILE *fp = popen(cmd, "r");
     if (fp == NULL) {
