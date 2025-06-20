@@ -1,4 +1,9 @@
 {
+  "core_http": {
+    "url": "https://github.com/FreeRTOS/coreHTTP.git",
+    "rev": "12adee81ddef588abada91672b34fd997b2a27ac",
+    "hash": "sha256-F7byUNa+him1o0gNkSfsb9ENOsZh+Sj8A1oM0GXSpA8="
+  },
   "ggl_sdk": {
     "url": "https://github.com/aws-greengrass/aws-greengrass-sdk-lite.git",
     "rev": "6e4b5946dc99ef18ae03c8715df0f6559aa2eef4",
