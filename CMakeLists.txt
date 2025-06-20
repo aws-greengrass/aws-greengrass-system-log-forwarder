@@ -181,58 +181,35 @@ endforeach()
 #
 find_package(PkgConfig REQUIRED)
 
-pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
-
 #
-# Build Executable
+# Add Dependencies
 #
 
+# Add ggl-sdk
 target_include_directories(ggl-sdk INTERFACE ${ggl_sdk_SOURCE_DIR}/priv_include)
 
 # Add coreHTTP
-file(GLOB_RECURSE SRCS_HTTP CONFIGURE_DEPENDS
-     "${core_http_SOURCE_DIR}/source/*.c")
-add_library(coreHTTP ${SRCS_HTTP})
-
-file(
-  GLOB_RECURSE ALL_PATHS
-  RELATIVE "${core_http_SOURCE_DIR}"
-  "${core_http_SOURCE_DIR}/source/*")
-
-# Find all subdirectories recursively
-file(
-  GLOB_RECURSE ALL_SUBDIRS
-  LIST_DIRECTORIES true
-  "${core_http_SOURCE_DIR}/source/*")
-
-# Create a list to store unique directory paths
-set(INCLUDE_DIRS "")
-
-# Add the main source directory
-list(APPEND INCLUDE_DIRS "${core_http_SOURCE_DIR}/source")
-
-# Loop through all found items and add only directories
-foreach(DIR ${ALL_SUBDIRS})
-  if(IS_DIRECTORY ${DIR})
-    list(APPEND INCLUDE_DIRS ${DIR})
-  endif()
-endforeach()
-
-# Remove any duplicates
-list(REMOVE_DUPLICATES INCLUDE_DIRS)
-
+include("${core_http_SOURCE_DIR}/httpFilePaths.cmake")
+add_library(coreHTTP ${HTTP_SOURCES})
 # Supress warning coming coreHTTP
 target_compile_options(
   coreHTTP PRIVATE -Wno-sign-conversion -Wno-conversion -Wno-unused-parameter
                    -Wno-missing-prototypes -Wno-redundant-decls -Wno-undef)
 # Add all directories to include paths
-target_include_directories(coreHTTP PRIVATE ${INCLUDE_DIRS})
-
-target_link_libraries(coreHTTP PRIVATE ggl-sdk)
-target_compile_definitions(coreHTTP PRIVATE CORE_HTTP_SOURCE)
+target_include_directories(coreHTTP PUBLIC ${HTTP_INCLUDE_PUBLIC_DIRS})
 target_include_directories(coreHTTP PRIVATE dep_modules/coreHTTP/)
+target_link_libraries(coreHTTP PRIVATE ggl-sdk)
 
-# Look for system log forwarder files
+# Add sigV4
+include("${aws_sigv4_SOURCE_DIR}/sigv4FilePaths.cmake")
+add_library(aws_sigv4 ${SIGV4_SOURCES})
+target_include_directories(aws_sigv4 PUBLIC ${SIGV4_INCLUDE_PUBLIC_DIRS})
+target_include_directories(aws_sigv4 PRIVATE dep_modules/aws-sigv4/)
+
+#
+# Build Executable
+#
+
 file(GLOB_RECURSE SRCS CONFIGURE_DEPENDS "src/*.c")
 list(LENGTH SRCS SRCS_LEN)
 
@@ -248,7 +225,6 @@ add_executable(gg-sys-log-forwarder ${SRCS})
 target_compile_definitions(gg-sys-log-forwarder
                            PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
 
-target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP
-                                                   PkgConfig::libsystemd)
+target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP)
 
 install(TARGETS gg-sys-log-forwarder)
