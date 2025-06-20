@@ -69,29 +69,25 @@
           };
 
         pname = "gg-sys-log-forwarder";
-        package = { pkgs, stdenv, pkg-config, cmake, ninja, systemdLibs, defaultMeta }:
+        package = { pkgs, stdenv, pkg-config, cmake, ninja, defaultMeta }:
           stdenv.mkDerivation {
             name = "gg-sys-log-forwarder";
             src = filteredSrc;
             nativeBuildInputs = [ pkg-config cmake ninja ];
-            buildInputs = [ systemdLibs ];
+            buildInputs = [ ];
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
-
-            # Add NIX_CFLAGS_COMPILE to disable the fallthrough warning
-            NIX_CFLAGS_COMPILE = "-Wno-implicit-fallthrough";
-
             dontStrip = true;
             meta = defaultMeta;
           };
 
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, systemdLibs, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
                 nativeBuildInputs = [ pkg-config clang-tools ];
-                buildInputs = [ systemdLibs ];
+                buildInputs = [ ];
                 buildPhase = ''
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
                     -D CMAKE_BUILD_TYPE=Debug ${toString (fetchContentFlags pkgs)}\
