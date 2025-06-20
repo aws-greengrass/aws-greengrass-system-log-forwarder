@@ -189,6 +189,50 @@ pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
 
 target_include_directories(ggl-sdk INTERFACE ${ggl_sdk_SOURCE_DIR}/priv_include)
 
+# Add coreHTTP
+file(GLOB_RECURSE SRCS_HTTP CONFIGURE_DEPENDS
+     "${core_http_SOURCE_DIR}/source/*.c")
+add_library(coreHTTP ${SRCS_HTTP})
+
+file(
+  GLOB_RECURSE ALL_PATHS
+  RELATIVE "${core_http_SOURCE_DIR}"
+  "${core_http_SOURCE_DIR}/source/*")
+
+# Find all subdirectories recursively
+file(
+  GLOB_RECURSE ALL_SUBDIRS
+  LIST_DIRECTORIES true
+  "${core_http_SOURCE_DIR}/source/*")
+
+# Create a list to store unique directory paths
+set(INCLUDE_DIRS "")
+
+# Add the main source directory
+list(APPEND INCLUDE_DIRS "${core_http_SOURCE_DIR}/source")
+
+# Loop through all found items and add only directories
+foreach(DIR ${ALL_SUBDIRS})
+  if(IS_DIRECTORY ${DIR})
+    list(APPEND INCLUDE_DIRS ${DIR})
+  endif()
+endforeach()
+
+# Remove any duplicates
+list(REMOVE_DUPLICATES INCLUDE_DIRS)
+
+# Supress warning coming coreHTTP
+target_compile_options(
+  coreHTTP PRIVATE -Wno-sign-conversion -Wno-conversion -Wno-unused-parameter
+                   -Wno-missing-prototypes -Wno-redundant-decls -Wno-undef)
+# Add all directories to include paths
+target_include_directories(coreHTTP PRIVATE ${INCLUDE_DIRS})
+
+target_link_libraries(coreHTTP PRIVATE ggl-sdk)
+target_compile_definitions(coreHTTP PRIVATE CORE_HTTP_SOURCE)
+target_include_directories(coreHTTP PRIVATE dep_modules/coreHTTP/)
+
+# Look for system log forwarder files
 file(GLOB_RECURSE SRCS CONFIGURE_DEPENDS "src/*.c")
 list(LENGTH SRCS SRCS_LEN)
 
@@ -204,7 +248,7 @@ add_executable(gg-sys-log-forwarder ${SRCS})
 target_compile_definitions(gg-sys-log-forwarder
                            PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
 
-target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk
+target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP
                                                    PkgConfig::libsystemd)
 
 install(TARGETS gg-sys-log-forwarder)

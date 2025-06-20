@@ -21,7 +21,7 @@
             ./src
             ./fc_deps.json
             ./.clang-tidy
-
+            ./dep_modules
           ];
         };
 
@@ -68,15 +68,19 @@
             ".clang*" = fmt-yaml;
           };
 
-        pname = "ggl-cloud-logger";
+        pname = "gg-sys-log-forwarder";
         package = { pkgs, stdenv, pkg-config, cmake, ninja, systemdLibs, defaultMeta }:
           stdenv.mkDerivation {
-            name = "ggl-cloud-logger";
+            name = "gg-sys-log-forwarder";
             src = filteredSrc;
             nativeBuildInputs = [ pkg-config cmake ninja ];
             buildInputs = [ systemdLibs ];
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
+
+            # Add NIX_CFLAGS_COMPILE to disable the fallthrough warning
+            NIX_CFLAGS_COMPILE = "-Wno-implicit-fallthrough";
+
             dontStrip = true;
             meta = defaultMeta;
           };
@@ -102,10 +106,10 @@
               };
           in
           {
-            build-clang = pkgs: pkgs.ggl-cloud-logger.override
+            build-clang = pkgs: pkgs.gg-sys-log-forwarder.override
               { stdenv = llvmStdenv pkgs; };
 
-            build-musl-pi = pkgs: pkgs.pkgsCross.muslpi.ggl-cloud-logger;
+            build-musl-pi = pkgs: pkgs.pkgsCross.muslpi.gg-sys-log-forwarder;
 
             clang-tidy = pkgs: ''
               set -eo pipefail
