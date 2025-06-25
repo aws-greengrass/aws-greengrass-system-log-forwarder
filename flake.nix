@@ -77,10 +77,6 @@
             buildInputs = [ ];
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
-
-            # Add NIX_CFLAGS_COMPILE to disable the fallthrough warning
-            NIX_CFLAGS_COMPILE = "-Wno-implicit-fallthrough";
-
             dontStrip = true;
             meta = defaultMeta;
           };
