@@ -69,12 +69,12 @@
           };
 
         pname = "gg-sys-log-forwarder";
-        package = { pkgs, stdenv, pkg-config, cmake, ninja, defaultMeta }:
+        package = { pkgs, lib, stdenv, pkg-config, cmake, ninja, argp-standalone, defaultMeta }:
           stdenv.mkDerivation {
             name = "gg-sys-log-forwarder";
             src = filteredSrc;
             nativeBuildInputs = [ pkg-config cmake ninja ];
-            buildInputs = [ ];
+            buildInputs = lib.optional (!stdenv.hostPlatform.isGnu) argp-standalone;
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
             dontStrip = true;
