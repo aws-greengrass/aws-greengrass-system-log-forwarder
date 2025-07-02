@@ -181,6 +181,15 @@ endforeach()
 #
 find_package(PkgConfig REQUIRED)
 
+include(CheckCSourceCompiles)
+
+check_c_source_compiles(
+  "
+  #include <argp.h>
+  int main(void) { argp_parse(0, 0, 0, 0, 0, 0); }
+  "
+  has_argp)
+
 #
 # Add Dependencies
 #
@@ -232,5 +241,9 @@ target_compile_definitions(gg-sys-log-forwarder
                            PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
 
 target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP)
+
+if(NOT has_argp)
+  target_link_libraries(gg-sys-log-forwarder PRIVATE argp)
+endif()
 
 install(TARGETS gg-sys-log-forwarder)
