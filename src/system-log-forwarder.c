@@ -21,8 +21,10 @@
 #include <stdlib.h>
 
 #define INVALID_UINT64 ((uint64_t) (-1)) // == 0xFFFFFFFFFFFFFFFF
+// Max digits for int64_t + null terminator
+#define MAX_TIMESTAMP_DIGITS (26)
 
-static void get_timestamp_as_string(
+static GglError get_timestamp_as_string(
     GglBuffer *timestamp_as_buffer, uint64_t timestamp
 ) {
     if (timestamp == INVALID_UINT64) {
@@ -39,7 +41,11 @@ static void get_timestamp_as_string(
     );
     if (ret_check > 0 && (size_t) ret_check < timestamp_as_buffer->len) {
         timestamp_as_buffer->len = (size_t) ret_check;
+    } else {
+        GGL_LOGE("Not enough memory to store timestamp.");
+        return GGL_ERR_NOMEM;
     }
+    return GGL_ERR_OK;
 }
 
 static GglError upload_prefix_format(
@@ -48,10 +54,13 @@ static GglError upload_prefix_format(
     // Max digits for int64_t + sign + null terminator
     static uint8_t timestamp_mem[21] = { 0 };
     GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
-    get_timestamp_as_string(&timestamp_as_buffer, INVALID_UINT64);
-
     GglError ret
-        = ggl_byte_vec_append(upload_doc, GGL_STR("{\"logGroupName\":\""));
+        = get_timestamp_as_string(&timestamp_as_buffer, INVALID_UINT64);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    ret = ggl_byte_vec_append(upload_doc, GGL_STR("{\"logGroupName\":\""));
     ggl_byte_vec_chain_append(&ret, upload_doc, config->logGroup);
     ggl_byte_vec_chain_append(
         &ret, upload_doc, GGL_STR("\",\"logStreamName\":\"")
@@ -81,7 +90,10 @@ static GglError format_log_events(
 
     ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("{\"timestamp\":"));
 
-    get_timestamp_as_string(&timestamp_as_buffer, timestamp);
+    ret = get_timestamp_as_string(&timestamp_as_buffer, timestamp);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
     ggl_byte_vec_chain_append(&ret, upload_doc, timestamp_as_buffer);
 
     ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR(",\"message\":\""));
@@ -91,14 +103,121 @@ static GglError format_log_events(
     return ret;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+static size_t json_format_size_calculator(
+    uint64_t timestamp, GglBuffer timestamp_as_buffer
+) {
+    GglError ret = get_timestamp_as_string(&timestamp_as_buffer, timestamp);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+    size_t header_size = strlen("{timestamp\": ")
+        + strlen((char *) timestamp_as_buffer.data)
+        + strlen("\", \"message\":\"\"},");
+    return header_size;
+}
+
+static GglError upload_and_reset(
+    GglByteVec *upload_doc, uint16_t *number_of_logs_added, const Config *config
+) {
+    GglError ret = GGL_ERR_OK;
+    ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("]}"));
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to add json terminators, Error Code %d", ret);
+        return ret;
+    }
+
+    GGL_LOGI("Upload document is full, uploading now..");
+
+    GGL_LOGW(
+        "Upload Document: %.*s", (int) upload_doc->buf.len, upload_doc->buf.data
+    );
+
+    // Reset the upload buffer memory
+    memset(upload_doc->buf.data, 0, upload_doc->buf.len);
+    upload_doc->buf.len = 0;
+    *number_of_logs_added = 0;
+
+    // Re-add the required prefix
+    ret = upload_prefix_format(upload_doc, config);
+    return ret;
+}
+
+static GglError process_log(
+    GglByteVec *upload_doc,
+    GglBuffer timestamp_as_buffer,
+    uint16_t *number_of_logs_added,
+    const Config *config
+) {
+    GglBuffer log;
+    uint64_t timestamp;
+    GglError ret = GGL_ERR_OK;
+
+    if (log_store_get(&log, &timestamp)) {
+        if (log.len > 0) {
+            GGL_LOGW("Consumer: %.*s", (int) log.len, log.data);
+            // Remove the new line character from the logs
+            if ((log.data[log.len - 1]) == '\n') {
+                log.len--;
+            }
+            size_t json_format_size
+                = json_format_size_calculator(timestamp, timestamp_as_buffer);
+
+            if (upload_doc->capacity
+                > (upload_doc->buf.len
+                   + (log.len + json_format_size + strlen("]}")))) {
+                ret = format_log_events(
+                    upload_doc,
+                    log,
+                    timestamp,
+                    timestamp_as_buffer,
+                    *number_of_logs_added
+                );
+                if (ret != GGL_ERR_OK) {
+                    GGL_LOGE(
+                        "Failed to create the upload document, Error: %d", ret
+                    );
+                    return ret;
+                }
+            } else {
+                ret = upload_and_reset(
+                    upload_doc, number_of_logs_added, config
+                );
+                if (ret != GGL_ERR_OK) {
+                    GGL_LOGE(
+                        "Failed to add prefix data to upload document. "
+                        "Error GGL code: "
+                        "%d",
+                        ret
+                    );
+                }
+                GGL_LOGW(
+                    "Consumer: %.*s, Capacity: %zu",
+                    (int) upload_doc->buf.len,
+                    upload_doc->buf.data,
+                    upload_doc->capacity
+                );
+                // TODO: Marker for future
+                return GGL_ERR_EXPECTED;
+            }
+
+            log_store_remove();
+            (*number_of_logs_added)++;
+            // TODO: Marker for future
+            return GGL_ERR_EXPECTED;
+        }
+        // Got Empty Log
+    }
+    // Empty ring buffer
+    return GGL_ERR_OK;
+}
+
 static void *consumer_thread(void *arg) {
     Config *config = (Config *) arg;
     uint8_t upload_mem[MAX_UPLOAD_SIZE] = { 0 };
     GglByteVec upload_doc = GGL_BYTE_VEC(upload_mem);
     (void) ggl_sleep(2);
-    // Max digits for int64_t + sign + null terminator
-    static uint8_t timestamp_mem[21] = { 0 };
+
+    static uint8_t timestamp_mem[MAX_TIMESTAMP_DIGITS] = { 0 };
     GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
 
     GglError ret = upload_prefix_format(&upload_doc, config);
@@ -111,77 +230,15 @@ static void *consumer_thread(void *arg) {
 
     uint16_t number_of_logs_added = 0;
     while (1) {
-        GglBuffer log;
-        uint64_t timestamp;
-
-        if (log_store_get(&log, &timestamp)) {
-            if (log.len > 0) {
-                GGL_LOGW("Consumer: %.*s", (int) log.len, log.data);
-                if ((log.data[log.len - 1]) == '\n') {
-                    log.len--;
-                }
-
-                if (upload_doc.capacity
-                    > (upload_doc.buf.len + log.len + 43 + 2)) {
-                    ret = format_log_events(
-                        &upload_doc,
-                        log,
-                        timestamp,
-                        timestamp_as_buffer,
-                        number_of_logs_added
-                    );
-                    if (ret != GGL_ERR_OK) {
-                        GGL_LOGE(
-                            "Failed to create the upload document, Error: %d",
-                            ret
-                        );
-                        break;
-                    }
-                } else {
-                    ggl_byte_vec_chain_append(&ret, &upload_doc, GGL_STR("]}"));
-                    if (ret != GGL_ERR_OK) {
-                        GGL_LOGE(
-                            "Failed to add json terminators, Error Code %d", ret
-                        );
-                        break;
-                    }
-
-                    GGL_LOGI("Upload document is full, uploading now..");
-
-                    GGL_LOGW(
-                        "Upload Document: %.*s",
-                        (int) upload_doc.buf.len,
-                        upload_doc.buf.data
-                    );
-
-                    // Reset the upload buffer memory
-                    memset(upload_doc.buf.data, 0, upload_doc.buf.len);
-                    upload_doc.buf.len = 0;
-                    number_of_logs_added = 0;
-
-                    // Read the required prefix
-                    ret = upload_prefix_format(&upload_doc, config);
-                    if (ret != GGL_ERR_OK) {
-                        GGL_LOGE(
-                            "Failed to add prefix data to upload document. "
-                            "Error GGL code: "
-                            "%d",
-                            ret
-                        );
-                    }
-                    GGL_LOGW(
-                        "Consumer: %.*s, Capacity: %zu",
-                        (int) upload_doc.buf.len,
-                        upload_doc.buf.data,
-                        upload_doc.capacity
-                    );
-                    continue;
-                }
-
-                log_store_remove();
-                number_of_logs_added++;
-                continue;
-            }
+        ret = process_log(
+            &upload_doc, timestamp_as_buffer, &number_of_logs_added, config
+        );
+        if (ret == GGL_ERR_EXPECTED) {
+            continue;
+        }
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE("Failed to process log. Error GGL code: %d", ret);
+            break;
         }
         (void) ggl_sleep(10);
     }
