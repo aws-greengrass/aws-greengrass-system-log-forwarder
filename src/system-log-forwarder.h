@@ -6,13 +6,15 @@
 #ifndef SYSTEM_LOG_FORWARDER_H
 #define SYSTEM_LOG_FORWARDER_H
 
-#include <ggl/buffer.h>
-#include <ggl/error.h>
 #define MAX_LINE_LENGTH (2048)
 #define THING_NAME_MAX_LENGTH (128)
 #define GGL_IPC_MAX_SVCUID_LEN (16)
 // #define MAX_UPLOAD_SIZE (1048000)
 #define MAX_UPLOAD_SIZE (1610)
+
+#include "ggl/vector.h"
+#include <ggl/buffer.h>
+#include <ggl/error.h>
 
 /// AWS Service information and temporary credentials
 ///
@@ -35,6 +37,7 @@ typedef struct {
     int maxRetriesCount;
     int bufferCapacity;
     GglBuffer logGroup;
+    GglBuffer logStream;
     GglBuffer thingName;
     GglBuffer region;
     GglBuffer port;
@@ -42,7 +45,7 @@ typedef struct {
 
 // Function to upload logs to CloudWatch
 GglError upload_logs_to_cloud_watch(
-    GglBufList log_lines, SigV4Details sigv4_details
+    GglByteVec log_lines, SigV4Details sigv4_details, Config config
 );
 
 #endif

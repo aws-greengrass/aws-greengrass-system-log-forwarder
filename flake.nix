@@ -42,7 +42,7 @@
         inherit inputs;
 
         devShell = pkgs: {
-          packages = with pkgs; [ clang-tools clangd-tidy git ];
+          packages = with pkgs; [ clang-tools clangd-tidy git openssl.dev ];
           env.NIX_HARDENING_ENABLE = "";
           shellHook = ''
             export MAKEFLAGS=-j
@@ -69,12 +69,12 @@
           };
 
         pname = "gg-sys-log-forwarder";
-        package = { pkgs, lib, stdenv, pkg-config, cmake, ninja, argp-standalone, defaultMeta }:
+        package = { pkgs, openssl, lib, stdenv, pkg-config, cmake, ninja, argp-standalone, defaultMeta }:
           stdenv.mkDerivation {
             name = "gg-sys-log-forwarder";
             src = filteredSrc;
             nativeBuildInputs = [ pkg-config cmake ninja ];
-            buildInputs = lib.optional (!stdenv.hostPlatform.isGnu) argp-standalone;
+            buildInputs = [ openssl ] ++ lib.optional (!stdenv.hostPlatform.isGnu) argp-standalone;
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
             dontStrip = true;
@@ -83,15 +83,17 @@
 
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, cmake, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, openssl, cmake, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
                 nativeBuildInputs = [ pkg-config clang-tools ];
-                buildInputs = [ ];
+                buildInputs = [ openssl ];
                 buildPhase = ''
+                  export PKG_CONFIG_PATH="${openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
-                    -D CMAKE_BUILD_TYPE=Debug ${toString (fetchContentFlags pkgs)}\
-                    rm $out/CMakeFiles/CMakeConfigureLog.yaml
+                    -D CMAKE_BUILD_TYPE=Debug ${toString (fetchContentFlags pkgs)} \
+                    -D CMAKE_C_FLAGS="-I${openssl.dev}/include"
+                  rm $out/CMakeFiles/CMakeConfigureLog.yaml
                 '';
                 dontUnpack = true;
                 dontPatch = true;
@@ -126,7 +128,8 @@
               iwyu_tool.py -o clang -j $(nproc) -p ${clangBuildDir pkgs} \
                 $(fd . ${filteredSrc}/ -e c) -- \
                 -Xiwyu --error -Xiwyu --check_also="${filteredSrc}/*" \
-                -Xiwyu --mapping_file=${./.}/misc/iwyu_mappings.yml |\
+                -Xiwyu --mapping_file=${./.}/misc/iwyu_mappings.yml \
+                -I${pkgs.openssl.dev}/include |\
                 { grep error: || true; } |\
                 sed 's|\(.*\)error:\(.*\)|'$white'\1'$red'error:'$white'\2'$clear'|' |\
                 sed 's|${filteredSrc}/||'

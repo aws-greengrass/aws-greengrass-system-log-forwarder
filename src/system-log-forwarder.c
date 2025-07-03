@@ -15,6 +15,7 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <stdio.h>
@@ -51,23 +52,27 @@ static GglError get_timestamp_as_string(
 static GglError upload_prefix_format(
     GglByteVec *upload_doc, const Config *config
 ) {
-    // Max digits for int64_t + sign + null terminator
-    static uint8_t timestamp_mem[21] = { 0 };
-    GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
     GglError ret
-        = get_timestamp_as_string(&timestamp_as_buffer, INVALID_UINT64);
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    ret = ggl_byte_vec_append(upload_doc, GGL_STR("{\"logGroupName\":\""));
+        = ggl_byte_vec_append(upload_doc, GGL_STR("{\"logGroupName\":\""));
     ggl_byte_vec_chain_append(&ret, upload_doc, config->logGroup);
     ggl_byte_vec_chain_append(
         &ret, upload_doc, GGL_STR("\",\"logStreamName\":\"")
     );
-    ggl_byte_vec_chain_append(&ret, upload_doc, config->thingName);
-    ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("-"));
-    ggl_byte_vec_chain_append(&ret, upload_doc, timestamp_as_buffer);
+
+    if (config->logStream.len > 0) {
+        ggl_byte_vec_chain_append(&ret, upload_doc, config->logStream);
+    } else {
+        static uint8_t timestamp_mem[MAX_TIMESTAMP_DIGITS] = { 0 };
+        GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
+        ret = get_timestamp_as_string(&timestamp_as_buffer, INVALID_UINT64);
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+        ggl_byte_vec_chain_append(&ret, upload_doc, config->thingName);
+        ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("-"));
+        ggl_byte_vec_chain_append(&ret, upload_doc, timestamp_as_buffer);
+    }
+
     ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("\", \"logEvents\":["));
     if (ret != GGL_ERR_OK) {
         return ret;
@@ -127,10 +132,23 @@ static GglError upload_and_reset(
     }
 
     GGL_LOGI("Upload document is full, uploading now..");
-
     GGL_LOGW(
         "Upload Document: %.*s", (int) upload_doc->buf.len, upload_doc->buf.data
     );
+
+    /* Set up SigV4 credentials */
+    // All the values must be null terminated
+    SigV4Details sigv4_details = { .aws_region = GGL_STR("us-west-2"),
+                                   .aws_service = GGL_STR("logs"),
+                                   .access_key_id = GGL_STR("here"),
+                                   .secret_access_key = GGL_STR("here"),
+                                   .session_token = GGL_STR("here") };
+
+    ret = upload_logs_to_cloud_watch(*upload_doc, sigv4_details, *config);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to upload to Cloudwatch, Error Code %d", ret);
+        return ret;
+    }
 
     // Reset the upload buffer memory
     memset(upload_doc->buf.data, 0, upload_doc->buf.len);
@@ -184,20 +202,30 @@ static GglError process_log(
                 );
                 if (ret != GGL_ERR_OK) {
                     GGL_LOGE(
-                        "Failed to add prefix data to upload document. "
+                        "Failed to upload logs to Cloudwatch and reset memory. "
                         "Error GGL code: "
                         "%d",
                         ret
                     );
+                    return ret;
                 }
-                GGL_LOGW(
-                    "Consumer: %.*s, Capacity: %zu",
-                    (int) upload_doc->buf.len,
-                    upload_doc->buf.data,
-                    upload_doc->capacity
+
+                // Now process the current log entry with the reset buffer
+                ret = format_log_events(
+                    upload_doc,
+                    log,
+                    timestamp,
+                    timestamp_as_buffer,
+                    *number_of_logs_added
                 );
-                // TODO: Marker for future
-                return GGL_ERR_EXPECTED;
+                if (ret != GGL_ERR_OK) {
+                    GGL_LOGE(
+                        "Failed to create the upload document after reset, "
+                        "Error: %d",
+                        ret
+                    );
+                    return ret;
+                }
             }
 
             log_store_remove();
@@ -258,7 +286,14 @@ static GglError producer_thread(void) {
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
         GGL_LOGI("Producer: %s", buffer);
 
-        uint64_t timestamp = (uint64_t) time(NULL);
+        struct timeval tv;
+        int time_status = gettimeofday(&tv, NULL);
+        if (time_status != 0) {
+            GGL_LOGE("Failed to get the current time.");
+            return GGL_ERR_INVALID;
+        }
+        uint64_t timestamp
+            = (uint64_t) ((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
         GglBuffer log_buf
             = { .data = (uint8_t *) buffer, .len = strlen(buffer) };
 
@@ -294,6 +329,7 @@ static struct argp_option opts[]
         { "maxRetriesCount", 'r', "integer", 0, "Maximum retry count", 0 },
         { "bufferCapacity", 'b', "integer", 0, "Buffer capacity", 0 },
         { "logGroup", 'g', "name", 0, "Log group name", 0 },
+        { "logStream", 's', "name", 0, "Log stream name", 0 },
         { "thingName", 't', "name", 0, "Device/Thing name", 0 },
         { "region", 'R', "name", 0, "AWS region", 0 },
         { "port", 'p', "integer", 0, "Port number", 0 },
@@ -313,6 +349,9 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         break;
     case 'g':
         config->logGroup = ggl_buffer_from_null_term(arg);
+        break;
+    case 's':
+        config->logStream = ggl_buffer_from_null_term(arg);
         break;
     case 't':
         config->thingName = ggl_buffer_from_null_term(arg);
@@ -350,23 +389,29 @@ int main(int argc, char *argv[]) {
                       .maxRetriesCount = 3,
                       .maxUploadIntervalSec = 300,
                       .logGroup = NULL,
+                      .logStream = NULL,
                       .region = NULL,
-                      .port = GGL_STR("443") };
+                      .port = GGL_STR("443\0") };
     ggl_sdk_init();
 
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, &config);
 
     GGL_LOGI("Configuration:");
-    GGL_LOGI("  maxUploadIntervalSec: %d", config.maxUploadIntervalSec);
-    GGL_LOGI("  maxRetriesCount: %d", config.maxRetriesCount);
-    GGL_LOGI("  bufferCapacity: %d", config.bufferCapacity);
+    GGL_LOGI("  maxUploadIntervalSec:%d", config.maxUploadIntervalSec);
+    GGL_LOGI("  maxRetriesCount:%d", config.maxRetriesCount);
+    GGL_LOGI("  bufferCapacity:%d", config.bufferCapacity);
     GGL_LOGI(
-        "  logGroup: %.*s", (int) config.logGroup.len, config.logGroup.data
+        "  logGroup:%.*s", (int) config.logGroup.len, config.logGroup.data
     );
     GGL_LOGI(
-        "  thingName: %.*s", (int) config.thingName.len, config.thingName.data
+        "  logStream:%.*s", (int) config.logStream.len, config.logStream.data
     );
+    GGL_LOGI(
+        "  thingName:%.*s", (int) config.thingName.len, config.thingName.data
+    );
+    GGL_LOGI("  region:%.*s", (int) config.region.len, config.region.data);
+    GGL_LOGI("  port:%.*s", (int) config.port.len, config.port.data);
 
     pthread_t consumer_tid;
 

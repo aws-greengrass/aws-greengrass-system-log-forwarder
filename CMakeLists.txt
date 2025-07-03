@@ -181,6 +181,8 @@ endforeach()
 #
 find_package(PkgConfig REQUIRED)
 
+pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
+
 include(CheckCSourceCompiles)
 
 check_c_source_compiles(
@@ -212,14 +214,14 @@ target_compile_options(
           -Wno-implicit-fallthrough)
 # Add all directories to include paths
 target_include_directories(coreHTTP PUBLIC ${HTTP_INCLUDE_PUBLIC_DIRS})
-target_include_directories(coreHTTP PRIVATE dep_modules/coreHTTP/)
-target_link_libraries(coreHTTP PRIVATE ggl-sdk)
+target_include_directories(coreHTTP PUBLIC dep_modules/coreHTTP/)
+target_link_libraries(coreHTTP PUBLIC ggl-sdk)
 
 # Add sigV4
 include("${aws_sigv4_SOURCE_DIR}/sigv4FilePaths.cmake")
 add_library(aws_sigv4 ${SIGV4_SOURCES})
 target_include_directories(aws_sigv4 PUBLIC ${SIGV4_INCLUDE_PUBLIC_DIRS})
-target_include_directories(aws_sigv4 PRIVATE dep_modules/aws-sigv4/)
+target_include_directories(aws_sigv4 PUBLIC dep_modules/aws-sigv4/)
 
 #
 # Build Executable
@@ -240,7 +242,8 @@ add_executable(gg-sys-log-forwarder ${SRCS})
 target_compile_definitions(gg-sys-log-forwarder
                            PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
 
-target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP)
+target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4
+                                                   PkgConfig::openssl)
 
 if(NOT has_argp)
   target_link_libraries(gg-sys-log-forwarder PRIVATE argp)
