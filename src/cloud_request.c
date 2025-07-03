@@ -41,6 +41,7 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
     SSL_load_error_strings();
     OpenSSL_add_ssl_algorithms();
 
+    // TODO: use static memory here
     TLSContext *tls = malloc(sizeof(TLSContext));
     if (!tls) {
         return NULL;
@@ -207,12 +208,7 @@ static GglError send_batch(
         GGL_LOGE("Failed to get current iso date time. Got 0 length date");
     }
 
-    GGL_LOGT("Generating SigV4 authorization header");
-    static uint8_t sigv4_headers_buffer[MAX_SIGV4_HEADER_LEN] = { 0 };
-    GglByteVec headers_to_sign
-        = { .buf = { .data = sigv4_headers_buffer, .len = 0 },
-            .capacity = sizeof(sigv4_headers_buffer) };
-
+    // TODO: transfer headers to its own function
     http_error = HTTPClient_AddHeader(
         &request_headers,
         "Content-Type",
@@ -223,26 +219,6 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE("Error adding header. coreHTTP error code: %d", http_error);
         return GGL_ERR_FATAL;
-    }
-    GglError ret = aws_sigv4_add_header_for_signing(
-        &headers_to_sign,
-        GGL_STR("Content-Type"),
-        GGL_STR("application/x-amz-json-1.1")
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add `Content-Type` header for signing");
-        return ret;
-    }
-
-    ret = aws_sigv4_add_header_for_signing(
-        &headers_to_sign,
-        GGL_STR("Host"),
-        (GglBuffer) { .data = (uint8_t *) endpoint->host,
-                      .len = strlen(endpoint->host) }
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add `Host` header for signing");
-        return ret;
     }
 
     http_error = HTTPClient_AddHeader(
@@ -255,15 +231,6 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE("Error adding header. coreHTTP error code: %d", http_error);
         return GGL_ERR_FATAL;
-    }
-    ret = aws_sigv4_add_header_for_signing(
-        &headers_to_sign,
-        GGL_STR("X-Amz-Date"),
-        (GglBuffer) { .data = (uint8_t *) current_datetime, .len = 16 }
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add `X-Amz-Date` header for signing");
-        return ret;
     }
 
     http_error = HTTPClient_AddHeader(
@@ -280,30 +247,13 @@ static GglError send_batch(
         );
         return GGL_ERR_FATAL;
     }
-    ret = aws_sigv4_add_header_for_signing(
-        &headers_to_sign,
-        GGL_STR("X-Amz-Target"),
-        GGL_STR("Logs_20140328.PutLogEvents")
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add `X-Amz-Target` header for signing");
-        return ret;
-    }
-    // Ensure session token is null-terminated
-    char *token_str_for_header = malloc(sigv4_details.session_token.len + 1);
-    memcpy(
-        token_str_for_header,
-        sigv4_details.session_token.data,
-        sigv4_details.session_token.len
-    );
-    token_str_for_header[sigv4_details.session_token.len] = '\0';
 
     http_error = HTTPClient_AddHeader(
         &request_headers,
         "X-Amz-Security-Token",
         strlen("X-Amz-Security-Token"),
-        token_str_for_header,
-        strlen(token_str_for_header)
+        (char *) sigv4_details.session_token.data,
+        sigv4_details.session_token.len
     );
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
@@ -312,52 +262,6 @@ static GglError send_batch(
             http_error
         );
     }
-    ret = aws_sigv4_add_header_for_signing(
-        &headers_to_sign,
-        GGL_STR("X-Amz-Security-Token"),
-        sigv4_details.session_token
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add `X-Amz-Security-Token` header for signing");
-        return ret;
-    }
-
-    static uint8_t auth_buffer[MAX_AUTH_HEADER_LEN] = { 0 };
-    GglBuffer auth_header = { .data = auth_buffer, .len = sizeof(auth_buffer) };
-    ret = aws_sigv4_cloudwatch_post_header(
-        sigv4_details, payload.buf, &headers_to_sign, &auth_header
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("SigV4 header generation failed with error: %d", ret);
-        close_tls_connection(tls);
-        return GGL_ERR_FATAL;
-    }
-
-    // Ensure Authorization header is null-terminated
-    // Here auth_header should never reach it's full capacity
-    // auth_header.data[auth_header.len] = '\0';
-
-    // Ensure Authorization header is null-terminated
-    // TODO: come back
-    char *auth_str_for_header = malloc(auth_header.len + 1);
-    memcpy(auth_str_for_header, auth_header.data, auth_header.len);
-    auth_str_for_header[auth_header.len] = '\0';
-
-    http_error = HTTPClient_AddHeader(
-        &request_headers,
-        "Authorization",
-        strlen("Authorization"),
-        auth_str_for_header,
-        strlen(auth_str_for_header)
-    );
-    if (http_error != HTTPSuccess) {
-        GGL_LOGE(
-            "Error adding `Authorization` header. coreHTTP error code: "
-            "%d",
-            http_error
-        );
-    }
-
     http_error = HTTPClient_AddHeader(
         &request_headers, "Accept", strlen("Accept"), "*/*", strlen("*/*")
     );
@@ -393,6 +297,55 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `Connection` header. coreHTTP error code: "
+            "%d",
+            http_error
+        );
+    }
+
+    GGL_LOGT("Generating SigV4 authorization header");
+    static uint8_t sigv4_headers_buffer[MAX_SIGV4_HEADER_LEN] = { 0 };
+    GglByteVec headers_to_sign
+        = { .buf = { .data = sigv4_headers_buffer, .len = 0 },
+            .capacity = sizeof(sigv4_headers_buffer) };
+
+    CloudwatchRequiredHeaders required_headers = {
+        .x_amz_target = GGL_STR("Logs_20140328.PutLogEvents"),
+        .x_amz_date = { (uint8_t *) current_datetime, DATE_BUFFER_LEN - 1 },
+        .amz_security_token = sigv4_details.session_token,
+        .host = (GglBuffer) { .data = (uint8_t *) endpoint->host,
+                              .len = strlen(endpoint->host) },
+        .content_type = GGL_STR("application/x-amz-json-1.1"),
+    };
+
+    static uint8_t auth_buffer[MAX_AUTH_HEADER_LEN] = { 0 };
+    GglBuffer auth_header = { .data = auth_buffer, .len = sizeof(auth_buffer) };
+    GglError ret = aws_sigv4_cloudwatch_post_header(
+        sigv4_details,
+        payload.buf,
+        required_headers,
+        &headers_to_sign,
+        &auth_header
+    );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("SigV4 header generation failed with error: %d", ret);
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
+    }
+
+    // Ensure Authorization header is null-terminated
+    // Here auth_header should never reach it's full capacity
+    auth_header.data[auth_header.len] = '\0';
+
+    http_error = HTTPClient_AddHeader(
+        &request_headers,
+        "Authorization",
+        strlen("Authorization"),
+        (char *) auth_header.data,
+        auth_header.len
+    );
+    if (http_error != HTTPSuccess) {
+        GGL_LOGE(
+            "Error adding `Authorization` header. coreHTTP error code: "
             "%d",
             http_error
         );

@@ -37,7 +37,7 @@ GglError aws_sigv4_add_header_for_signing(
     GglByteVec *vector, GglBuffer header_key, GglBuffer header_value
 );
 
-typedef struct S3RequiredHeaders {
+typedef struct CloudwatchRequiredHeaders {
     // host
     GglBuffer host;
     // Content-Type

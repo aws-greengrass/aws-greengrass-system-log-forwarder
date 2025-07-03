@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "aws_sigv4.h"
-#include "ggl/log.h"
 #include "sigv4.h"
 #include "system-log-forwarder.h"
 #include <assert.h>
@@ -266,7 +265,7 @@ GglError aws_sigv4_cloudwatch_post_header(
             headers_to_sign,
             (GglBuffer) { .data = (uint8_t *) "Content-Type",
                           .len = sizeof("Content-Type") - 1 },
-            GGL_STR("application/x-amz-json-1.1")
+            required_headers.content_type
         );
     }
 
