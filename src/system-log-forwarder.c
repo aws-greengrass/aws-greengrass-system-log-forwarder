@@ -132,7 +132,7 @@ static GglError upload_and_reset(
     }
 
     GGL_LOGI("Upload document is full, uploading now..");
-    GGL_LOGW(
+    GGL_LOGT(
         "Upload Document: %.*s", (int) upload_doc->buf.len, upload_doc->buf.data
     );
 
@@ -172,7 +172,7 @@ static GglError process_log(
 
     if (log_store_get(&log, &timestamp)) {
         if (log.len > 0) {
-            GGL_LOGW("Consumer: %.*s", (int) log.len, log.data);
+            GGL_LOGT("Consumer: %.*s", (int) log.len, log.data);
             // Remove the new line character from the logs
             if ((log.data[log.len - 1]) == '\n') {
                 log.len--;
@@ -397,21 +397,21 @@ int main(int argc, char *argv[]) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, &config);
 
-    GGL_LOGI("Configuration:");
-    GGL_LOGI("  maxUploadIntervalSec:%d", config.maxUploadIntervalSec);
-    GGL_LOGI("  maxRetriesCount:%d", config.maxRetriesCount);
-    GGL_LOGI("  bufferCapacity:%d", config.bufferCapacity);
-    GGL_LOGI(
+    GGL_LOGT("Configuration:");
+    GGL_LOGT("  maxUploadIntervalSec:%d", config.maxUploadIntervalSec);
+    GGL_LOGT("  maxRetriesCount:%d", config.maxRetriesCount);
+    GGL_LOGT("  bufferCapacity:%d", config.bufferCapacity);
+    GGL_LOGT(
         "  logGroup:%.*s", (int) config.logGroup.len, config.logGroup.data
     );
-    GGL_LOGI(
+    GGL_LOGT(
         "  logStream:%.*s", (int) config.logStream.len, config.logStream.data
     );
-    GGL_LOGI(
+    GGL_LOGT(
         "  thingName:%.*s", (int) config.thingName.len, config.thingName.data
     );
-    GGL_LOGI("  region:%.*s", (int) config.region.len, config.region.data);
-    GGL_LOGI("  port:%.*s", (int) config.port.len, config.port.data);
+    GGL_LOGT("  region:%.*s", (int) config.region.len, config.region.data);
+    GGL_LOGT("  port:%.*s", (int) config.port.len, config.port.data);
 
     pthread_t consumer_tid;
 

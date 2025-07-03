@@ -36,7 +36,7 @@ static int32_t transport_recv(
 }
 
 static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
-    GGL_LOGI("Attempting to connect to %s:%s", endpoint->host, endpoint->port);
+    GGL_LOGT("Attempting to connect to %s:%s", endpoint->host, endpoint->port);
 
     SSL_load_error_strings();
     OpenSSL_add_ssl_algorithms();
@@ -158,10 +158,10 @@ static const char *http_status_to_string(HTTPStatus_t status) {
 static GglError send_batch(
     const HttpEndpoint *endpoint, GglByteVec payload, SigV4Details sigv4_details
 ) {
-    GGL_LOGI("Creating TLS connection");
+    GGL_LOGT("Creating TLS connection");
     TLSContext *tls = create_tls_connection(endpoint);
     if (!tls) {
-        GGL_LOGI("Failed to create TLS connection");
+        GGL_LOGE("Failed to create TLS connection");
         return GGL_ERR_FATAL;
     }
 
@@ -184,7 +184,7 @@ static GglError send_batch(
             .bufferLen = sizeof(header_buffer) };
 
     /* Initialize HTTP headers */
-    GGL_LOGI("Initializing HTTP headers");
+    GGL_LOGT("Initializing HTTP headers");
     HTTPStatus_t http_error
         = HTTPClient_InitializeRequestHeaders(&request_headers, &request_info);
     if (http_error != HTTPSuccess) {
@@ -194,7 +194,7 @@ static GglError send_batch(
         close_tls_connection(tls);
         return GGL_ERR_FAILURE;
     }
-    GGL_LOGI(
+    GGL_LOGT(
         "After init the request header length is %zu",
         request_headers.headersLen
     );
@@ -207,7 +207,7 @@ static GglError send_batch(
         GGL_LOGE("Failed to get current iso date time. Got 0 length date");
     }
 
-    GGL_LOGI("Generating SigV4 authorization header");
+    GGL_LOGT("Generating SigV4 authorization header");
     static uint8_t sigv4_headers_buffer[MAX_SIGV4_HEADER_LEN] = { 0 };
     GglByteVec headers_to_sign
         = { .buf = { .data = sigv4_headers_buffer, .len = 0 },
@@ -402,11 +402,11 @@ static GglError send_batch(
     HTTPResponse_t response
         = { .pBuffer = response_buffer, .bufferLen = sizeof(response_buffer) };
 
-    GGL_LOGD("Sending batched logs to %s%s", endpoint->host, endpoint->path);
+    GGL_LOGT("Sending batched logs to %s%s", endpoint->host, endpoint->path);
 
-    GGL_LOGD("Request headers length: %zu", request_headers.headersLen);
-    GGL_LOGD("Sending HTTP request with payload size: %zu", payload.buf.len);
-    GGL_LOGD("Payload is: %.*s", (int) payload.buf.len, payload.buf.data);
+    GGL_LOGT("Request headers length: %zu", request_headers.headersLen);
+    GGL_LOGT("Sending HTTP request with payload size: %zu", payload.buf.len);
+    GGL_LOGT("Payload is: %.*s", (int) payload.buf.len, payload.buf.data);
 
     // Log the complete request headers for debugging
     GGL_LOGT(
@@ -415,12 +415,6 @@ static GglError send_batch(
         (char *) request_headers.pBuffer
     );
 
-    // Log the complete request headers for debugging
-    GGL_LOGI(
-        "Request headers: %.*s",
-        (int) request_headers.headersLen,
-        (char *) request_headers.pBuffer
-    );
     HTTPStatus_t status = HTTPClient_Send(
         &transport,
         &request_headers,
@@ -463,7 +457,7 @@ static GglError send_batch(
 GglError upload_logs_to_cloud_watch(
     GglByteVec log_lines, SigV4Details sigv4_details, Config config
 ) {
-    GGL_LOGI("Starting to send logs");
+    GGL_LOGT("Starting to send logs");
 
     uint8_t hosturl_mem[32];
     GglByteVec hosturl = GGL_BYTE_VEC(hosturl_mem);
@@ -480,7 +474,7 @@ GglError upload_logs_to_cloud_watch(
                               .port = (char *) config.port.data,
                               .path = "/" };
 
-    GGL_LOGI(
+    GGL_LOGT(
         "Endpoint configured: %s:%s%s",
         endpoint.host,
         endpoint.port,
