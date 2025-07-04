@@ -237,16 +237,16 @@ foreach(src ${SRCS})
     PROPERTY COMPILE_FLAGS "-frandom-seed=${src}")
 endforeach()
 
-add_executable(gg-sys-log-forwarder ${SRCS})
+add_executable(system-log-forwarder ${SRCS})
 
-target_compile_definitions(gg-sys-log-forwarder
-                           PRIVATE "GGL_MODULE=(\"gg-sys-log-forwarder\")")
+target_compile_definitions(system-log-forwarder
+                           PRIVATE "GGL_MODULE=(\"system-log-forwarder\")")
 
-target_link_libraries(gg-sys-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4
+target_link_libraries(system-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4
                                                    PkgConfig::openssl)
 
 if(NOT has_argp)
-  target_link_libraries(gg-sys-log-forwarder PRIVATE argp)
+  target_link_libraries(system-log-forwarder PRIVATE argp)
 endif()
 
-install(TARGETS gg-sys-log-forwarder)
+install(TARGETS system-log-forwarder)
