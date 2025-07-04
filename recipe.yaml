@@ -10,18 +10,15 @@ ComponentDescription: AWS Greengrass System Log Forwarder
 ComponentPublisher: AWS
 ComponentConfiguration:
   DefaultConfiguration:
-    accessControl:
-      aws.greengrass.ipc.mqttproxy:
-        aws.greengrass.CloudLogger:mqttproxy:1:
-          policyDescription: Allows access to publish/subscribe to all topics.
-          operations:
-            - aws.greengrass#PublishToIoTCore
-          resources:
-            - "gglite/+/logs"
+    "maxUploadIntervalSec": 300
+    "maxRetriesCount": 3
+    "bufferCapacity": 1048576
+    "logGroup": "greengrass/systemLogs"
+    "aws-region": "us-west-2"
 Manifests:
   - Platform:
       os: linux
       runtime: "*"
     Lifecycle:
       run: |
-        {artifacts:path}/cloud-logger
+        {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} --logGroup {configuration:/logGroup} --thingName {iot:thingName} --region {configuration:/aws-region}
