@@ -169,7 +169,7 @@ static GglError process_log(
     uint64_t timestamp;
     GglError ret = GGL_ERR_OK;
 
-    if (log_store_get(&log, &timestamp)) {
+    if (slf_log_store_get(&log, &timestamp)) {
         if (log.len > 0) {
             GGL_LOGD("Consumer: %.*s", (int) log.len, log.data);
             // Remove the new line character from the logs
@@ -227,7 +227,7 @@ static GglError process_log(
                 }
             }
 
-            log_store_remove();
+            slf_log_store_remove();
             (*number_of_logs_added)++;
             // TODO: Marker for future
             return GGL_ERR_EXPECTED;
@@ -273,6 +273,10 @@ static void *consumer_thread(void *arg) {
 }
 
 static GglError producer_thread(void) {
+    if (slf_initialize_ringbuf_state() != GGL_ERR_OK) {
+        _Exit(1);
+    }
+
     const char *cmd = "journalctl -mf --no-pager";
 
     FILE *fp = popen(cmd, "r");
@@ -296,10 +300,10 @@ static GglError producer_thread(void) {
         GglBuffer log_buf
             = { .data = (uint8_t *) buffer, .len = strlen(buffer) };
 
-        GglError ret = log_store_add(log_buf, timestamp);
+        GglError ret = slf_log_store_add(log_buf, timestamp);
         if (ret == GGL_ERR_NOMEM) {
-            log_store_remove();
-            ret = log_store_add(log_buf, timestamp);
+            slf_log_store_remove();
+            ret = slf_log_store_add(log_buf, timestamp);
             if (ret != GGL_ERR_OK) {
                 GGL_LOGE("Failed to replace and add to the ring buffer.");
             }
