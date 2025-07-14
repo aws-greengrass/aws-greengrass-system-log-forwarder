@@ -35,7 +35,7 @@ static char *backing_mem;
 
 static const size_t TOTAL_RING_BUFF_MEM = (size_t) 1024 * 1024;
 
-static GglError initialize_ringbuf_state(void) {
+GglError slf_initialize_ringbuf_state(void) {
     size_t page_size = (size_t) sysconf(_SC_PAGESIZE);
     // TODO: sysconf error
     if (page_size <= offsetof(LogEntry, log_line) + MAX_LOG_LEN) {
@@ -118,18 +118,12 @@ static GglError initialize_ringbuf_state(void) {
     return GGL_ERR_OK;
 }
 
-__attribute__((constructor)) static void init_ring_buffer(void) {
-    if (initialize_ringbuf_state() != GGL_ERR_OK) {
-        _Exit(1);
-    }
-}
-
 static size_t log_entry_len(size_t log_len) {
     size_t base_len = offsetof(LogEntry, log_line) + log_len;
     return (base_len + alignof(LogEntry) - 1) & ~(alignof(LogEntry) - 1);
 }
 
-GglError log_store_add(GglBuffer log, uint64_t timestamp) {
+GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
     GglBuffer truncated = log;
     if (truncated.len > MAX_LOG_LEN) {
         truncated.len = MAX_LOG_LEN;
@@ -165,7 +159,7 @@ GglError log_store_add(GglBuffer log, uint64_t timestamp) {
     return GGL_ERR_OK;
 }
 
-bool log_store_get(GglBuffer *log, uint64_t *timestamp) {
+bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp) {
     if (atomic_load_explicit(&free_mem, memory_order_acquire)
         == TOTAL_RING_BUFF_MEM) {
         return false;
@@ -179,7 +173,7 @@ bool log_store_get(GglBuffer *log, uint64_t *timestamp) {
     return true;
 }
 
-void log_store_remove(void) {
+void slf_log_store_remove(void) {
     LogEntry *entry = (LogEntry *) &backing_mem[front];
     size_t len = log_entry_len(entry->log_len);
     front = (front + len) % TOTAL_RING_BUFF_MEM;

@@ -11,16 +11,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// TODO: Prefix the function name according to the name of the component
+GglError slf_initialize_ringbuf_state(void);
+
 // Add a log entry from the producer thread
-GglError log_store_add(GglBuffer log, uint64_t timestamp);
+GglError slf_log_store_add(GglBuffer log, uint64_t timestamp);
 
 // Get the first log entry from the consumer thread.
 // Returns false if queue is empty.
 // If returns true, must call log_store_remove after done with the entry.
-bool log_store_get(GglBuffer *log, uint64_t *timestamp);
+bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
 
 // Remove the first log entry from the consumer thread.
 // log_store_get must be called first. There must be only one call to
 // log_store_remove per call to log_store_get.
-void log_store_remove(void);
+void slf_log_store_remove(void);
