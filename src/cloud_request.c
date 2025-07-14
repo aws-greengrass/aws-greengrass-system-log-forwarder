@@ -14,7 +14,6 @@
 #include <transport_interface.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 // As Required by the sigv4 library
 #define DATE_BUFFER_LEN (17)

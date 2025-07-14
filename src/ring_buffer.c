@@ -18,7 +18,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 #define MAX_LOG_LEN 2048
 
@@ -32,10 +31,17 @@ static size_t front = 0;
 static size_t end = 0;
 static atomic_size_t free_mem;
 static char *backing_mem;
+static bool initialized = false;
 
-static const size_t TOTAL_RING_BUFF_MEM = (size_t) 1024 * 1024;
+static size_t total_ring_buff_mem = (size_t) 1024 * 1024;
 
-GglError slf_initialize_ringbuf_state(void) {
+GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
+    if (initialized) {
+        return GGL_ERR_OK;
+    }
+
+    total_ring_buff_mem = ring_buffer_memory;
+
     size_t page_size = (size_t) sysconf(_SC_PAGESIZE);
     // TODO: sysconf error
     if (page_size <= offsetof(LogEntry, log_line) + MAX_LOG_LEN) {
@@ -43,7 +49,7 @@ GglError slf_initialize_ringbuf_state(void) {
         return GGL_ERR_INVALID;
     }
 
-    if (TOTAL_RING_BUFF_MEM % page_size != 0) {
+    if (total_ring_buff_mem % page_size != 0) {
         GGL_LOGE("Ring buffer length is not a multiple of system page size.");
         return GGL_ERR_INVALID;
     }
@@ -56,7 +62,7 @@ GglError slf_initialize_ringbuf_state(void) {
 
     // Here ftruncate may enter a transient state so retry as needed
     while (1) {
-        int ret = ftruncate(fd, (ssize_t) TOTAL_RING_BUFF_MEM);
+        int ret = ftruncate(fd, (ssize_t) total_ring_buff_mem);
         if (ret != 0) {
             if (errno == EINTR) {
                 GGL_LOGW("ftruncate interrupted. Retrying.");
@@ -71,7 +77,7 @@ GglError slf_initialize_ringbuf_state(void) {
 
     void *mmap_ret = mmap(
         NULL,
-        TOTAL_RING_BUFF_MEM + page_size,
+        total_ring_buff_mem + page_size,
         PROT_NONE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         -1,
@@ -87,7 +93,7 @@ GglError slf_initialize_ringbuf_state(void) {
 
     mmap_ret = mmap(
         backing_mem,
-        TOTAL_RING_BUFF_MEM,
+        total_ring_buff_mem,
         PROT_READ | PROT_WRITE,
         MAP_SHARED | MAP_FIXED,
         fd,
@@ -100,7 +106,7 @@ GglError slf_initialize_ringbuf_state(void) {
     }
 
     mmap_ret = mmap(
-        &backing_mem[TOTAL_RING_BUFF_MEM],
+        &backing_mem[total_ring_buff_mem],
         page_size,
         PROT_READ | PROT_WRITE,
         MAP_SHARED | MAP_FIXED,
@@ -113,7 +119,8 @@ GglError slf_initialize_ringbuf_state(void) {
         return GGL_ERR_FAILURE;
     }
 
-    atomic_store_explicit(&free_mem, TOTAL_RING_BUFF_MEM, memory_order_relaxed);
+    atomic_store_explicit(&free_mem, total_ring_buff_mem, memory_order_relaxed);
+    initialized = true;
 
     return GGL_ERR_OK;
 }
@@ -142,7 +149,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
     memcpy(entry->log_line, log.data, log.len);
     entry->timestamp = timestamp;
 
-    end = (end + required_len) % TOTAL_RING_BUFF_MEM;
+    end = (end + required_len) % total_ring_buff_mem;
     size_t prev_free = atomic_fetch_sub_explicit(
         &free_mem, required_len, memory_order_acq_rel
     );
@@ -152,7 +159,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
         "Max log entry length must be less than UINT16_MAX."
     );
 
-    if (prev_free < TOTAL_RING_BUFF_MEM / 2) {
+    if (prev_free < total_ring_buff_mem / 2) {
         // TODO: Trigger upload thread to flush
     }
 
@@ -161,7 +168,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
 
 bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp) {
     if (atomic_load_explicit(&free_mem, memory_order_acquire)
-        == TOTAL_RING_BUFF_MEM) {
+        == total_ring_buff_mem) {
         return false;
     }
 
@@ -176,7 +183,7 @@ bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp) {
 void slf_log_store_remove(void) {
     LogEntry *entry = (LogEntry *) &backing_mem[front];
     size_t len = log_entry_len(entry->log_len);
-    front = (front + len) % TOTAL_RING_BUFF_MEM;
+    front = (front + len) % total_ring_buff_mem;
     free_mem += len;
     atomic_fetch_add_explicit(&free_mem, len, memory_order_acq_rel);
 }
