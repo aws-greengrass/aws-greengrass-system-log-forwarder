@@ -190,7 +190,9 @@ static GglError send_batch(
         = HTTPClient_InitializeRequestHeaders(&request_headers, &request_info);
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
-            "Failed to initialize header, coreHTTP error code: %d", http_error
+            "Failed to initialize header, coreHTTP error code: %d (%s)",
+            http_error,
+            http_status_to_string(http_error)
         );
         close_tls_connection(tls);
         return GGL_ERR_FAILURE;
@@ -217,7 +219,11 @@ static GglError send_batch(
         strlen("application/x-amz-json-1.1")
     );
     if (http_error != HTTPSuccess) {
-        GGL_LOGE("Error adding header. coreHTTP error code: %d", http_error);
+        GGL_LOGE(
+            "Error adding header. coreHTTP error code: %d (%s).",
+            http_error,
+            http_status_to_string(http_error)
+        );
         return GGL_ERR_FATAL;
     }
 
@@ -229,7 +235,11 @@ static GglError send_batch(
         DATE_BUFFER_LEN - 1
     );
     if (http_error != HTTPSuccess) {
-        GGL_LOGE("Error adding header. coreHTTP error code: %d", http_error);
+        GGL_LOGE(
+            "Error adding header. coreHTTP error code: %d (%s).",
+            http_error,
+            http_status_to_string(http_error)
+        );
         return GGL_ERR_FATAL;
     }
 
@@ -242,8 +252,9 @@ static GglError send_batch(
     );
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
-            "Error adding `X-Amz-Target` header. coreHTTP error code: %d",
-            http_error
+            "Error adding `X-Amz-Target` header. coreHTTP error code: %d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
         return GGL_ERR_FATAL;
     }
@@ -258,8 +269,9 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `X-Amz-Security-Token` header. coreHTTP error code: "
-            "%d",
-            http_error
+            "%d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
     }
     http_error = HTTPClient_AddHeader(
@@ -268,8 +280,9 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `Accept` header. coreHTTP error code: "
-            "%d",
-            http_error
+            "%d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
     }
 
@@ -283,8 +296,9 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `Accept-Encoding` header. coreHTTP error code: "
-            "%d",
-            http_error
+            "%d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
     }
     http_error = HTTPClient_AddHeader(
@@ -297,8 +311,9 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `Connection` header. coreHTTP error code: "
-            "%d",
-            http_error
+            "%d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
     }
 
@@ -346,8 +361,9 @@ static GglError send_batch(
     if (http_error != HTTPSuccess) {
         GGL_LOGE(
             "Error adding `Authorization` header. coreHTTP error code: "
-            "%d",
-            http_error
+            "%d (%s).",
+            http_error,
+            http_status_to_string(http_error)
         );
     }
 

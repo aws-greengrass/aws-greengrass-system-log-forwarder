@@ -22,8 +22,7 @@
 #include <stdlib.h>
 
 #define INVALID_UINT64 ((uint64_t) (-1)) // == 0xFFFFFFFFFFFFFFFF
-// Max digits for int64_t + null terminator
-#define MAX_TIMESTAMP_DIGITS (26)
+#define MAX_TIMESTAMP_DIGITS (26) // Max digits for int64_t + null terminator
 
 static GglError get_timestamp_as_string(
     GglBuffer *timestamp_as_buffer, uint64_t timestamp
