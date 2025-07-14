@@ -6,9 +6,11 @@
 #ifndef SYSTEM_LOG_FORWARDER_H
 #define SYSTEM_LOG_FORWARDER_H
 
+#include <stddef.h>
 #define MAX_LINE_LENGTH (2048)
 #define THING_NAME_MAX_LENGTH (128)
 #define GGL_IPC_MAX_SVCUID_LEN (16)
+// based on the cloudwatch PutLogEvents docs -576 as a buffer space
 #define MAX_UPLOAD_SIZE (1048000)
 
 #include "ggl/vector.h"
@@ -21,7 +23,7 @@
 typedef struct SigV4Details {
     /// AWS region code (e.g. "us-east-2")
     GglBuffer aws_region;
-    /// AWS service endpoint name (e.g. "logs" or)
+    /// AWS service endpoint name (e.g. "logs")
     GglBuffer aws_service;
     /// Temporary AWS ID
     GglBuffer access_key_id;
@@ -34,7 +36,7 @@ typedef struct SigV4Details {
 typedef struct {
     int maxUploadIntervalSec;
     int maxRetriesCount;
-    int bufferCapacity;
+    size_t bufferCapacity;
     GglBuffer logGroup;
     GglBuffer logStream;
     GglBuffer thingName;

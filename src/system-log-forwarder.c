@@ -18,6 +18,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -272,8 +273,9 @@ static void *consumer_thread(void *arg) {
     return NULL;
 }
 
-static GglError producer_thread(void) {
-    if (slf_initialize_ringbuf_state() != GGL_ERR_OK) {
+static GglError producer_thread(Config config) {
+    if (slf_initialize_ringbuf_state(config.bufferCapacity) != GGL_ERR_OK) {
+        GGL_LOGE("Failed to initialize ring buffer. Exiting.");
         _Exit(1);
     }
 
@@ -348,7 +350,7 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         config->maxRetriesCount = atoi(arg);
         break;
     case 'b':
-        config->bufferCapacity = atoi(arg);
+        config->bufferCapacity = (size_t) strtoul(arg, NULL, 10);
         break;
     case 'g':
         config->logGroup = ggl_buffer_from_null_term(arg);
@@ -388,7 +390,7 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
 static struct argp argp = { opts, arg_parser, 0, doc, 0, 0, 0 };
 
 int main(int argc, char *argv[]) {
-    Config config = { .bufferCapacity = (1024 * 1024),
+    Config config = { .bufferCapacity = (size_t) (1024 * 1024),
                       .maxRetriesCount = 3,
                       .maxUploadIntervalSec = 300,
                       .logGroup = NULL,
@@ -402,7 +404,7 @@ int main(int argc, char *argv[]) {
 
     GGL_LOGD(
         "Config: \n maxUploadIntervalSec=%ds \n maxRetriesCount=%d \n "
-        "bufferCapacity=%d \n logGroup=%.*s \n logStream=%.*s \n "
+        "bufferCapacity=%zu \n logGroup=%.*s \n logStream=%.*s \n "
         "thingName=%.*s \n region=%.*s \n port=%.*s \n",
         config.maxUploadIntervalSec,
         config.maxRetriesCount,
@@ -428,7 +430,7 @@ int main(int argc, char *argv[]) {
 
     pthread_create(&consumer_tid, NULL, consumer_thread, &config);
 
-    GglError ret = producer_thread();
+    GglError ret = producer_thread(config);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Producer thread failed.");
     }

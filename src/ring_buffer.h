@@ -9,9 +9,11 @@
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
-GglError slf_initialize_ringbuf_state(void);
+// initialize the ring buffer
+GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory);
 
 // Add a log entry from the producer thread
 GglError slf_log_store_add(GglBuffer log, uint64_t timestamp);
