@@ -41,15 +41,12 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
     SSL_load_error_strings();
     OpenSSL_add_ssl_algorithms();
 
-    // TODO: use static memory here
-    TLSContext *tls = malloc(sizeof(TLSContext));
-    if (!tls) {
-        return NULL;
-    }
+    static TLSContext tls_context;
+    TLSContext *tls = &tls_context;
+    memset(tls, 0, sizeof(TLSContext));
 
     tls->ctx = SSL_CTX_new(TLS_client_method());
     if (!tls->ctx) {
-        free(tls);
         return NULL;
     }
 
@@ -60,7 +57,6 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
 
     if (getaddrinfo(endpoint->host, endpoint->port, &hints, &result) != 0) {
         SSL_CTX_free(tls->ctx);
-        free(tls);
         return NULL;
     }
 
@@ -69,7 +65,6 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
     if (tls->sockfd < 0) {
         freeaddrinfo(result);
         SSL_CTX_free(tls->ctx);
-        free(tls);
         return NULL;
     }
 
@@ -77,7 +72,6 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
         close(tls->sockfd);
         freeaddrinfo(result);
         SSL_CTX_free(tls->ctx);
-        free(tls);
         return NULL;
     }
     freeaddrinfo(result);
@@ -89,7 +83,6 @@ static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
         SSL_free(tls->ssl);
         close(tls->sockfd);
         SSL_CTX_free(tls->ctx);
-        free(tls);
         return NULL;
     }
 
@@ -113,7 +106,6 @@ static void close_tls_connection(TLSContext *tls) {
         if (tls->ctx) {
             SSL_CTX_free(tls->ctx);
         }
-        free(tls);
     }
 }
 
