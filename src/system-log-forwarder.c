@@ -171,7 +171,7 @@ static GglError process_log(
 
     if (log_store_get(&log, &timestamp)) {
         if (log.len > 0) {
-            GGL_LOGT("Consumer: %.*s", (int) log.len, log.data);
+            GGL_LOGD("Consumer: %.*s", (int) log.len, log.data);
             // Remove the new line character from the logs
             if ((log.data[log.len - 1]) == '\n') {
                 log.len--;
@@ -283,7 +283,7 @@ static GglError producer_thread(void) {
 
     char buffer[MAX_LINE_LENGTH] = { 0 };
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        GGL_LOGI("Producer: %s", buffer);
+        GGL_LOGD("Producer: %s", buffer);
 
         struct timeval tv;
         int time_status = gettimeofday(&tv, NULL);
@@ -396,21 +396,24 @@ int main(int argc, char *argv[]) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, &config);
 
-    GGL_LOGT("Configuration:");
-    GGL_LOGT("  maxUploadIntervalSec:%d", config.maxUploadIntervalSec);
-    GGL_LOGT("  maxRetriesCount:%d", config.maxRetriesCount);
-    GGL_LOGT("  bufferCapacity:%d", config.bufferCapacity);
-    GGL_LOGT(
-        "  logGroup:%.*s", (int) config.logGroup.len, config.logGroup.data
+    GGL_LOGD(
+        "Config: \n maxUploadIntervalSec=%ds \n maxRetriesCount=%d \n "
+        "bufferCapacity=%d \n logGroup=%.*s \n logStream=%.*s \n "
+        "thingName=%.*s \n region=%.*s \n port=%.*s \n",
+        config.maxUploadIntervalSec,
+        config.maxRetriesCount,
+        config.bufferCapacity,
+        (int) config.logGroup.len,
+        config.logGroup.data,
+        (int) config.logStream.len,
+        config.logStream.data,
+        (int) config.thingName.len,
+        config.thingName.data,
+        (int) config.region.len,
+        config.region.data,
+        (int) config.port.len,
+        config.port.data
     );
-    GGL_LOGT(
-        "  logStream:%.*s", (int) config.logStream.len, config.logStream.data
-    );
-    GGL_LOGT(
-        "  thingName:%.*s", (int) config.thingName.len, config.thingName.data
-    );
-    GGL_LOGT("  region:%.*s", (int) config.region.len, config.region.data);
-    GGL_LOGT("  port:%.*s", (int) config.port.len, config.port.data);
 
     pthread_t consumer_tid;
 
