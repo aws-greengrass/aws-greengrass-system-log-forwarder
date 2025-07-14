@@ -22,7 +22,7 @@
 typedef struct SigV4Details {
     /// AWS region code (e.g. "us-east-2")
     GglBuffer aws_region;
-    /// AWS service endpoint name (e.g. "s3" or "lambda")
+    /// AWS service endpoint name (e.g. "logs" or)
     GglBuffer aws_service;
     /// Temporary AWS ID
     GglBuffer access_key_id;
