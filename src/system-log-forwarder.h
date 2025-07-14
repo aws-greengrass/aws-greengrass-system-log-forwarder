@@ -9,8 +9,8 @@
 #define MAX_LINE_LENGTH (2048)
 #define THING_NAME_MAX_LENGTH (128)
 #define GGL_IPC_MAX_SVCUID_LEN (16)
-// #define MAX_UPLOAD_SIZE (1048000)
-#define MAX_UPLOAD_SIZE (1610)
+#define MAX_UPLOAD_SIZE (1048000)
+
 
 #include "ggl/vector.h"
 #include <ggl/buffer.h>
