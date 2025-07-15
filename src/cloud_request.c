@@ -339,7 +339,11 @@ static GglError send_batch(
     }
 
     // Ensure Authorization header is null-terminated
-    // Here auth_header should never reach it's full capacity
+    if (auth_header.len >= sizeof(auth_buffer)) {
+        GGL_LOGE("Authorization header buffer too small");
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
+    }
     auth_header.data[auth_header.len] = '\0';
 
     http_error = HTTPClient_AddHeader(
