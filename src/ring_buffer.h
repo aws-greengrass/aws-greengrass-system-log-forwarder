@@ -1,10 +1,14 @@
-// aws-greengrass-system-log-forwarder - System log uploader for AWS Greengrass
+// aws-greengrass-system-log-forwarder - AWS Greengrass component for forwarding
+// logs to CloudWatch.
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Implements a single-producer, single-consumer ring buffer for log messages.
 //! Exactly one thread may call log_store_add to add entries, and exactly one
 //! thread may call log_store_get/log_store_remove to remove entries.
+
+#ifndef RING_BUFFER_H
+#define RING_BUFFER_H
 
 #include <ggl/buffer.h>
 #include <ggl/error.h>
@@ -27,3 +31,5 @@ bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
 // log_store_get must be called first. There must be only one call to
 // log_store_remove per call to log_store_get.
 void slf_log_store_remove(void);
+
+#endif
