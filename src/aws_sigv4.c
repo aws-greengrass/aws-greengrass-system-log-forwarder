@@ -7,9 +7,11 @@
 #include "system-log-forwarder.h"
 #include <assert.h>
 #include <ggl/buffer.h>
+#include <ggl/log.h>
 #include <ggl/vector.h>
 #include <openssl/evp.h>
 #include <openssl/types.h>
+#include <sched.h>
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
@@ -114,6 +116,10 @@ static GglError aws_sigv4_generate_header(
 ) {
     char timestamp[17]; // YYYYMMDDTHHMMSSz\0
     EVP_MD_CTX *md_context = EVP_MD_CTX_new();
+    if (md_context == NULL) {
+        GGL_LOGE("Failed to create EVP_MD_CTX");
+        return GGL_ERR_NOMEM;
+    }
 
     SigV4HttpParameters_t http_params
         = { .pHeaders = (const char *) http_headers.data,
