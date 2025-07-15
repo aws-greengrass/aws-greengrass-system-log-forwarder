@@ -111,37 +111,37 @@ static void close_tls_connection(TLSContext *tls) {
 static const char *http_status_to_string(HTTPStatus_t status) {
     switch (status) {
     case HTTPSuccess:
-        return "HTTPSuccess";
+        return "Success";
     case HTTPInvalidParameter:
-        return "HTTPInvalidParameter";
+        return "InvalidParameter";
     case HTTPNetworkError:
-        return "HTTPNetworkError";
+        return "NetworkError";
     case HTTPPartialResponse:
-        return "HTTPPartialResponse";
+        return "PartialResponse";
     case HTTPNoResponse:
-        return "HTTPNoResponse";
+        return "NoResponse";
     case HTTPInsufficientMemory:
-        return "HTTPInsufficientMemory";
+        return "InsufficientMemory";
     case HTTPSecurityAlertExtraneousResponseData:
-        return "HTTPSecurityAlertExtraneousResponseData";
+        return "SecurityAlertExtraneousResponseData";
     case HTTPSecurityAlertInvalidChunkHeader:
-        return "HTTPSecurityAlertInvalidChunkHeader";
+        return "SecurityAlertInvalidChunkHeader";
     case HTTPSecurityAlertInvalidProtocolVersion:
-        return "HTTPSecurityAlertInvalidProtocolVersion";
+        return "SecurityAlertInvalidProtocolVersion";
     case HTTPSecurityAlertInvalidStatusCode:
-        return "HTTPSecurityAlertInvalidStatusCode";
+        return "SecurityAlertInvalidStatusCode";
     case HTTPSecurityAlertInvalidCharacter:
-        return "HTTPSecurityAlertInvalidCharacter";
+        return "SecurityAlertInvalidCharacter";
     case HTTPSecurityAlertInvalidContentLength:
-        return "HTTPSecurityAlertInvalidContentLength";
+        return "SecurityAlertInvalidContentLength";
     case HTTPParserPaused:
-        return "HTTPParserPaused";
+        return "ParserPaused";
     case HTTPParserInternalError:
-        return "HTTPParserInternalError";
+        return "ParserInternalError";
     case HTTPHeaderNotFound:
-        return "HTTPHeaderNotFound";
+        return "HeaderNotFound";
     case HTTPInvalidResponse:
-        return "HTTPInvalidResponse";
+        return "InvalidResponse";
     default:
         return "Unknown HTTP Status";
     }
