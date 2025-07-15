@@ -146,7 +146,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
 
     LogEntry *entry = (LogEntry *) &backing_mem[end];
     entry->log_len = (uint16_t) truncated.len;
-    memcpy(entry->log_line, log.data, log.len);
+    memcpy(entry->log_line, truncated.data, truncated.len);
     entry->timestamp = timestamp;
 
     end = (end + required_len) % total_ring_buff_mem;
@@ -184,6 +184,5 @@ void slf_log_store_remove(void) {
     LogEntry *entry = (LogEntry *) &backing_mem[front];
     size_t len = log_entry_len(entry->log_len);
     front = (front + len) % total_ring_buff_mem;
-    free_mem += len;
     atomic_fetch_add_explicit(&free_mem, len, memory_order_acq_rel);
 }
