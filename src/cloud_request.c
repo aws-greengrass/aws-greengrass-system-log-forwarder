@@ -2,7 +2,6 @@
 #include "cloud_request.h"
 #include "aws_sigv4.h"
 #include "core_http_client.h"
-#include "system-log-forwarder.h"
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <ggl/log.h>
@@ -13,6 +12,7 @@
 #include <sys/socket.h>
 #include <transport_interface.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 // As Required by the sigv4 library
@@ -37,8 +37,12 @@ static int32_t transport_recv(
 static TLSContext *create_tls_connection(const HttpEndpoint *endpoint) {
     GGL_LOGT("Attempting to connect to %s:%s", endpoint->host, endpoint->port);
 
-    SSL_load_error_strings();
-    OpenSSL_add_ssl_algorithms();
+    static bool ssl_initialized = false;
+    if (!ssl_initialized) {
+        SSL_load_error_strings();
+        OpenSSL_add_ssl_algorithms();
+        ssl_initialized = true;
+    }
 
     static TLSContext tls_context;
     TLSContext *tls = &tls_context;
@@ -148,7 +152,7 @@ static const char *http_status_to_string(HTTPStatus_t status) {
 }
 
 static GglError send_batch(
-    const HttpEndpoint *endpoint, GglByteVec payload, SigV4Details sigv4_details
+    const HttpEndpoint *endpoint, GglBuffer payload, SigV4Details sigv4_details
 ) {
     GGL_LOGT("Creating TLS connection");
     TLSContext *tls = create_tls_connection(endpoint);
@@ -199,6 +203,8 @@ static GglError send_batch(
     );
     if (date_status == 0) {
         GGL_LOGE("Failed to get current iso date time. Got 0 length date");
+        close_tls_connection(tls);
+        return GGL_ERR_FAILURE;
     }
 
     // TODO: transfer headers to its own function
@@ -326,11 +332,7 @@ static GglError send_batch(
     static uint8_t auth_buffer[MAX_AUTH_HEADER_LEN] = { 0 };
     GglBuffer auth_header = { .data = auth_buffer, .len = sizeof(auth_buffer) };
     GglError ret = aws_sigv4_cloudwatch_post_header(
-        sigv4_details,
-        payload.buf,
-        required_headers,
-        &headers_to_sign,
-        &auth_header
+        sigv4_details, payload, required_headers, &headers_to_sign, &auth_header
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("SigV4 header generation failed with error: %d", ret);
@@ -369,8 +371,8 @@ static GglError send_batch(
     GGL_LOGT("Sending batched logs to %s%s", endpoint->host, endpoint->path);
 
     GGL_LOGT("Request headers length: %zu", request_headers.headersLen);
-    GGL_LOGT("Sending HTTP request with payload size: %zu", payload.buf.len);
-    GGL_LOGT("Payload is: %.*s", (int) payload.buf.len, payload.buf.data);
+    GGL_LOGT("Sending HTTP request with payload size: %zu", payload.len);
+    GGL_LOGT("Payload is: %.*s", (int) payload.len, payload.data);
 
     // Log the complete request headers for debugging
     GGL_LOGT(
@@ -380,12 +382,7 @@ static GglError send_batch(
     );
 
     HTTPStatus_t status = HTTPClient_Send(
-        &transport,
-        &request_headers,
-        payload.buf.data,
-        payload.buf.len,
-        &response,
-        0
+        &transport, &request_headers, payload.data, payload.len, &response, 0
     );
 
     GGL_LOGI(
@@ -418,8 +415,8 @@ static GglError send_batch(
     return 0;
 }
 
-GglError upload_logs_to_cloud_watch(
-    GglByteVec log_lines, SigV4Details sigv4_details, Config config
+GglError slf_upload_logs_to_cloud_watch(
+    GglBuffer log_lines, SigV4Details sigv4_details, Config config
 ) {
     GGL_LOGT("Starting to send logs");
 
