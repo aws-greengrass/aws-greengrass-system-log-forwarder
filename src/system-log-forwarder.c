@@ -178,10 +178,10 @@ int main(int argc, char *argv[]) {
     Config config = { .bufferCapacity = (size_t) (1024 * 1024),
                       .maxRetriesCount = 3,
                       .maxUploadIntervalSec = 300,
-                      .logGroup = NULL,
-                      .logStream = NULL,
-                      .region = NULL,
-                      .port = GGL_STR("443\0") };
+                      .logGroup = { 0 },
+                      .logStream = { 0 },
+                      .region = { 0 },
+                      .port = GGL_STR("443") };
     ggl_sdk_init();
 
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
