@@ -42,8 +42,14 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
 
     total_ring_buff_mem = ring_buffer_memory;
 
-    size_t page_size = (size_t) sysconf(_SC_PAGESIZE);
-    // TODO: sysconf error
+    // The return from sysconf is long so using this as intermediatory
+    long page_size_long = sysconf(_SC_PAGESIZE);
+    if (page_size_long <= 0) {
+        GGL_LOGE("Failed to get system page size.");
+        return GGL_ERR_FAILURE;
+    }
+
+    size_t page_size = (size_t) page_size_long;
     if (page_size <= offsetof(LogEntry, log_line) + MAX_LOG_LEN) {
         GGL_LOGE("Max log entry length cannot exceed system page size.");
         return GGL_ERR_INVALID;
