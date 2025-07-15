@@ -82,8 +82,10 @@ static GglError producer_thread(Config config) {
             GGL_LOGE("Failed to get the current time.");
             return GGL_ERR_INVALID;
         }
+
         uint64_t timestamp
             = (uint64_t) ((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
+
         GglBuffer log_buf
             = { .data = (uint8_t *) buffer, .len = strlen(buffer) };
 
@@ -103,6 +105,7 @@ static GglError producer_thread(Config config) {
         }
     }
 
+    pclose(fp);
     return GGL_ERR_OK;
 }
 

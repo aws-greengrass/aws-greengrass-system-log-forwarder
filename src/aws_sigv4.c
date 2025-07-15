@@ -11,7 +11,6 @@
 #include <ggl/vector.h>
 #include <openssl/evp.h>
 #include <openssl/types.h>
-#include <sched.h>
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
