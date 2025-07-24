@@ -8,17 +8,25 @@ ComponentName: "aws.greengrass.SystemLogForwarder"
 ComponentVersion: "0.1.0"
 ComponentDescription: AWS Greengrass System Log Forwarder
 ComponentPublisher: AWS
+ComponentDependencies:
+  aws.greengrass.TokenExchangeService:
+    VersionRequirement: ">=2.0.0"
+    DependencyType: HARD
 ComponentConfiguration:
   DefaultConfiguration:
-    "maxUploadIntervalSec": 300
-    "maxRetriesCount": 3
-    "bufferCapacity": 1048576
-    "logGroup": "greengrass/systemLogs"
-    "aws-region": "us-west-2"
+    maxUploadIntervalSec: 300
+    maxRetriesCount: 3
+    bufferCapacity: 1048576
+    logGroup: "greengrass/systemLogs"
+    logStream: ""
+    aws-region: "us-west-2"
 Manifests:
   - Platform:
       os: linux
       runtime: "*"
     Lifecycle:
       run: |
-        {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} --logGroup {configuration:/logGroup} --thingName {iot:thingName} --region {configuration:/aws-region}
+        {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
+          --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} \
+          --logGroup {configuration:/logGroup} --logStream {configuration:/logStream} \ 
+          --thingName {iot:thingName} --region {configuration:/aws-region}
