@@ -6,11 +6,15 @@
 #define TES_HTTP_UTIL_H
 
 #include "system-log-forwarder.h"
+#include <ggl/arena.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 
 GglError tes_http_get_credentials(
-    GglBuffer uri, GglBuffer token, SigV4Details *response
+    GglBuffer uri,
+    GglBuffer token,
+    SigV4Details *response_credentials,
+    GglArena *alloc
 );
 
 #endif

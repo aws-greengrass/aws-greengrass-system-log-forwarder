@@ -4,10 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "log_processor.h"
+#include "aws_credentials_util.h"
 #include "cloud_request.h"
 #include "ring_buffer.h"
 #include "system-log-forwarder.h"
 #include <assert.h>
+#include <ggl/arena.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <ggl/log.h>
@@ -112,11 +114,14 @@ static GglError upload_and_reset(
 
     /* Set up SigV4 credentials */
     // All the values must be null terminated
-    SigV4Details sigv4_details = { .aws_region = GGL_STR("us-west-2"),
-                                   .aws_service = GGL_STR("logs"),
-                                   .access_key_id = GGL_STR("here"),
-                                   .secret_access_key = GGL_STR("here"),
-                                   .session_token = GGL_STR("here") };
+    SigV4Details sigv4_details = { .aws_service = GGL_STR("logs") };
+    uint8_t credentials_mem[4096] = { 0 };
+    GglArena cred_alloc = ggl_arena_init(GGL_BUF(credentials_mem));
+    ret = get_credentials_chain_credentials(&sigv4_details, &cred_alloc);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Error when retrieving AWS credentials.");
+        return ret;
+    }
 
     ret = slf_upload_logs_to_cloud_watch(
         upload_doc->buf, sigv4_details, *config
