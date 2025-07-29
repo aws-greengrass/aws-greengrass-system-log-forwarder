@@ -118,7 +118,7 @@ Run from your install directory, specifying the current version of
 SystemLogForwarder in place of x.y.z:
 
 ```
-./bin/ggl-cli deploy --recipe-dir components/recipes --artifacts-dir components/artifacts --add-component aws.greengrass.SystemLogForwarder=x.y.z
+/usr/local/bin/ggl-cli deploy --recipe-dir components/recipes --artifacts-dir components/artifacts --add-component aws.greengrass.SystemLogForwarder=x.y.z
 ```
 
 Check the nucleus logs to verify that the deployment has SUCCEEDED.
