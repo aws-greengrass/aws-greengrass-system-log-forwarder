@@ -10,7 +10,7 @@
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 
-GglError tes_http_get_credentials(
+GglError ecs_http_get_credentials(
     GglBuffer uri,
     GglBuffer token,
     SigV4Details *response_credentials,

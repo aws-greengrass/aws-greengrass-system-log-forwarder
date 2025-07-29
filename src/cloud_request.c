@@ -1,7 +1,7 @@
 // Function to upload logs to CloudWatch
 #include "cloud_request.h"
 #include "aws_sigv4.h"
-#include "core_http_client.h"
+#include <core_http_client.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <ggl/log.h>
@@ -112,7 +112,7 @@ static void close_tls_connection(TLSContext *tls) {
     }
 }
 
-static const char *http_status_to_string(HTTPStatus_t status) {
+const char *slf_http_status_to_string(HTTPStatus_t status) {
     switch (status) {
     case HTTPSuccess:
         return "Success";
@@ -187,7 +187,7 @@ static GglError send_batch(
         GGL_LOGE(
             "Failed to initialize header, coreHTTP error code: %d (%s)",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
         close_tls_connection(tls);
         return GGL_ERR_FAILURE;
@@ -219,7 +219,7 @@ static GglError send_batch(
         GGL_LOGE(
             "Error adding header. coreHTTP error code: %d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
         return GGL_ERR_FATAL;
     }
@@ -235,7 +235,7 @@ static GglError send_batch(
         GGL_LOGE(
             "Error adding header. coreHTTP error code: %d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
         return GGL_ERR_FATAL;
     }
@@ -251,7 +251,7 @@ static GglError send_batch(
         GGL_LOGE(
             "Error adding `X-Amz-Target` header. coreHTTP error code: %d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
         return GGL_ERR_FATAL;
     }
@@ -268,7 +268,7 @@ static GglError send_batch(
             "Error adding `X-Amz-Security-Token` header. coreHTTP error code: "
             "%d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
     }
     http_error = HTTPClient_AddHeader(
@@ -279,7 +279,7 @@ static GglError send_batch(
             "Error adding `Accept` header. coreHTTP error code: "
             "%d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
     }
 
@@ -295,7 +295,7 @@ static GglError send_batch(
             "Error adding `Accept-Encoding` header. coreHTTP error code: "
             "%d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
     }
     http_error = HTTPClient_AddHeader(
@@ -310,7 +310,7 @@ static GglError send_batch(
             "Error adding `Connection` header. coreHTTP error code: "
             "%d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
     }
 
@@ -360,7 +360,7 @@ static GglError send_batch(
             "Error adding `Authorization` header. coreHTTP error code: "
             "%d (%s).",
             http_error,
-            http_status_to_string(http_error)
+            slf_http_status_to_string(http_error)
         );
     }
 
@@ -372,7 +372,6 @@ static GglError send_batch(
 
     GGL_LOGT("Request headers length: %zu", request_headers.headersLen);
     GGL_LOGT("Sending HTTP request with payload size: %zu", payload.len);
-    GGL_LOGT("Payload is: %.*s", (int) payload.len, payload.data);
 
     // Log the complete request headers for debugging
     GGL_LOGT(
@@ -388,7 +387,7 @@ static GglError send_batch(
     GGL_LOGI(
         "HTTP Status: %d (%s), Response Code: %u",
         status,
-        http_status_to_string(status),
+        slf_http_status_to_string(status),
         response.statusCode
     );
     if (response.pBody && response.bodyLen > 0) {
@@ -402,7 +401,7 @@ static GglError send_batch(
         GGL_LOGE(
             "HTTP request failed with status: %d (%s)",
             status,
-            http_status_to_string(status)
+            slf_http_status_to_string(status)
         );
         return GGL_ERR_FAILURE;
     }
