@@ -124,7 +124,6 @@ static struct argp_option opts[]
         { "logGroup", 'g', "name", 0, "Log group name", 0 },
         { "logStream", 's', "name", 0, "Log stream name", 0 },
         { "thingName", 't', "name", 0, "Device/Thing name", 0 },
-        { "region", 'R', "name", 0, "AWS region", 0 },
         { "port", 'p', "integer", 0, "Port number", 0 },
         { 0 } };
 
@@ -148,9 +147,6 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         break;
     case 't':
         config->thingName = ggl_buffer_from_null_term(arg);
-        break;
-    case 'R':
-        config->region = ggl_buffer_from_null_term(arg);
         break;
     case 'p': {
         int port_val = atoi(arg);
@@ -183,7 +179,6 @@ int main(int argc, char *argv[]) {
                       .maxUploadIntervalSec = 300,
                       .logGroup = { 0 },
                       .logStream = { 0 },
-                      .region = { 0 },
                       .port = GGL_STR("443") };
     ggl_sdk_init();
 
@@ -193,7 +188,7 @@ int main(int argc, char *argv[]) {
     GGL_LOGD(
         "Config: \n maxUploadIntervalSec=%ds \n maxRetriesCount=%d \n "
         "bufferCapacity=%zu \n logGroup=%.*s \n logStream=%.*s \n "
-        "thingName=%.*s \n region=%.*s \n port=%.*s \n",
+        "thingName=%.*s \n port=%.*s \n",
         config.maxUploadIntervalSec,
         config.maxRetriesCount,
         config.bufferCapacity,
@@ -203,8 +198,6 @@ int main(int argc, char *argv[]) {
         config.logStream.data,
         (int) config.thingName.len,
         config.thingName.data,
-        (int) config.region.len,
-        config.region.data,
         (int) config.port.len,
         config.port.data
     );

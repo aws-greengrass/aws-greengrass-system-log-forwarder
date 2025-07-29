@@ -69,12 +69,13 @@ you would need to provide environment variables to access your account.
 export AWS_ACCESS_KEY_ID=[REPLACE HERE]
 export AWS_SECRET_ACCESS_KEY=[REPLACE HERE]
 export AWS_SESSION_TOKEN=[REPLACE HERE]
+export AWS_REGION=[REPLACE HERE]
 
 # To get usage help
 ./build/bin/system-log-forwarder --help
 
 # Sample use case
-./build/bin/system-log-forwarder --logGroup test/logs --thingName testName --region us-west-2
+./build/bin/system-log-forwarder --logGroup test/logs --thingName testName
 ```
 
 ### Prerequisites

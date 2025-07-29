@@ -19,7 +19,6 @@ ComponentConfiguration:
     bufferCapacity: 1048576
     logGroup: "greengrass/systemLogs"
     logStream: ""
-    aws-region: "us-west-2"
 Manifests:
   - Platform:
       os: linux
@@ -29,4 +28,4 @@ Manifests:
         {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
           --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} \
           --logGroup {configuration:/logGroup} --logStream {configuration:/logStream} \ 
-          --thingName {iot:thingName} --region {configuration:/aws-region}
+          --thingName {iot:thingName}
