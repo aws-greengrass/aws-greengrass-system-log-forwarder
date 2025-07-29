@@ -121,7 +121,10 @@ static GglError parse_container_credentials_uri(
 }
 
 GglError tes_http_get_credentials(
-    GglBuffer uri, GglBuffer token, SigV4Details *response
+    GglBuffer uri,
+    GglBuffer token,
+    SigV4Details *response_credentials,
+    GglArena *alloc
 ) {
     GGL_LOGT(
         "Making HTTP GET request to TES endpoint: %.*s", (int) uri.len, uri.data
@@ -141,7 +144,8 @@ GglError tes_http_get_credentials(
 
     // TODO: Make coreHTTP call to parsed URI
     (void) token;
-    (void) response;
+    (void) response_credentials;
+    (void) alloc;
 
     return GGL_ERR_UNSUPPORTED;
 }

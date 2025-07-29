@@ -198,7 +198,9 @@ static GglError get_ecs_provider_info(ContainerCredentialsInfo *cred_info) {
     return GGL_ERR_OK;
 }
 
-static GglError set_credentials_from_ecs_provider(SigV4Details *sigv4_details) {
+static GglError set_credentials_from_ecs_provider(
+    SigV4Details *sigv4_details, GglArena *alloc
+) {
     ContainerCredentialsInfo cred_info = { 0 };
     GglError ret = get_ecs_provider_info(&cred_info);
     if (ret != GGL_ERR_OK) {
@@ -206,7 +208,7 @@ static GglError set_credentials_from_ecs_provider(SigV4Details *sigv4_details) {
     }
 
     ret = tes_http_get_credentials(
-        cred_info.uri, cred_info.token, sigv4_details
+        cred_info.uri, cred_info.token, sigv4_details, alloc
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Error when getting ECS credentials over HTTP.");
@@ -216,7 +218,9 @@ static GglError set_credentials_from_ecs_provider(SigV4Details *sigv4_details) {
     return GGL_ERR_OK;
 }
 
-GglError get_credentials_chain_credentials(SigV4Details *sigv4_details) {
+GglError get_credentials_chain_credentials(
+    SigV4Details *sigv4_details, GglArena *alloc
+) {
     GglError ret = set_aws_region(sigv4_details);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Error when getting AWS region.");
@@ -235,7 +239,7 @@ GglError get_credentials_chain_credentials(SigV4Details *sigv4_details) {
         return GGL_ERR_OK;
     }
 
-    ret = set_credentials_from_ecs_provider(sigv4_details);
+    ret = set_credentials_from_ecs_provider(sigv4_details, alloc);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Was not able to retrieve AWS credentials.");
         return ret;
