@@ -7,6 +7,7 @@
 #define CLOUD_REQUEST_H
 
 #include "system-log-forwarder.h"
+#include <core_http_client.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <openssl/types.h>
@@ -25,6 +26,8 @@ typedef struct {
     SSL *ssl;
     SSL_CTX *ctx;
 } TLSContext;
+
+const char *slf_http_status_to_string(HTTPStatus_t status);
 
 // Function to upload logs to CloudWatch
 GglError slf_upload_logs_to_cloud_watch(

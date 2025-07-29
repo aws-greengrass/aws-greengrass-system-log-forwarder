@@ -9,6 +9,7 @@
 #include <ggl/error.h>
 #include <ggl/log.h>
 #include <ggl/vector.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -120,7 +121,8 @@ static GglError get_ecs_provider_uri(GglByteVec *full_uri) {
     );
     GglBuffer full_uri_from_env_buf = ggl_buffer_from_null_term(full_uri_env);
     if (!ggl_buffer_eq(
-            ggl_buffer_substr(full_uri_from_env_buf, 0, 8), GGL_STR("http://")
+            ggl_buffer_substr(full_uri_from_env_buf, 0, strlen("http://")),
+            GGL_STR("http://")
         )) {
         GGL_LOGE(
             "AWS_CONTAINER_CREDENTIALS_FULL_URI does not start with http://"
@@ -181,6 +183,9 @@ static GglError get_ecs_provider_info(ContainerCredentialsInfo *cred_info) {
     static uint8_t ecs_uri_arr[2048] = { 0 };
     GglByteVec ecs_uri_vec = GGL_BYTE_VEC(ecs_uri_arr);
     GglError ret = get_ecs_provider_uri(&ecs_uri_vec);
+    if (ret == GGL_ERR_NOENTRY) {
+        GGL_LOGD("ECS provider URI was not found in environment variables.");
+    }
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Error when getting ECS provider URI.");
         return ret;
@@ -189,6 +194,9 @@ static GglError get_ecs_provider_info(ContainerCredentialsInfo *cred_info) {
 
     GglBuffer ecs_token = { 0 };
     ret = get_ecs_provider_token(&ecs_token);
+    if (ret == GGL_ERR_NOENTRY) {
+        GGL_LOGD("ECS provider token was not found in environment variables.");
+    }
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Error when getting ECS provider token.");
         return ret;
@@ -207,7 +215,7 @@ static GglError set_credentials_from_ecs_provider(
         return ret;
     }
 
-    ret = tes_http_get_credentials(
+    ret = ecs_http_get_credentials(
         cred_info.uri, cred_info.token, sigv4_details, alloc
     );
     if (ret != GGL_ERR_OK) {
