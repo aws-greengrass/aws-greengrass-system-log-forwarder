@@ -16,20 +16,40 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// initialize the ring buffer
+/// @brief Initializes the ring buffer state with specified memory allocation.
+/// This function sets up the internal data structures for the single-producer,
+/// single-consumer ring buffer used for log message storage.
+/// @param[in] ring_buffer_memory Size in bytes of memory to allocate for the
+/// ring buffer
+/// @return GGL_ERR_OK on success, error code on failure
 GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory);
 
-// Add a log entry from the producer thread
+/// @brief Adds a log entry to the ring buffer from the producer thread.
+/// This function stores a log message with its timestamp in the ring buffer.
+/// Only one thread should call this function (single-producer constraint).
+/// @param[in] log Buffer containing the log message to store
+/// @param[in] timestamp Unix timestamp in milliseconds for the log entry
+/// @return GGL_ERR_OK on success, error code on failure (e.g., buffer full)
 GglError slf_log_store_add(GglBuffer log, uint64_t timestamp);
 
-// Get the first log entry from the consumer thread.
-// Returns false if queue is empty.
-// If returns true, must call log_store_remove after done with the entry.
+/// @brief Retrieves the first log entry from the ring buffer for the consumer
+/// thread. This function provides access to the oldest log entry without
+/// removing it. Only one thread should call this function (single-consumer
+/// constraint).
+/// @param[out] log Pointer to buffer that will receive the log message
+/// @param[out] timestamp Pointer to variable that will receive the log
+/// timestamp
+/// @return true if a log entry was retrieved, false if the queue is empty
+/// @note If this function returns true, slf_log_store_remove must be called
+/// afterward
 bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
 
-// Remove the first log entry from the consumer thread.
-// log_store_get must be called first. There must be only one call to
-// log_store_remove per call to log_store_get.
+/// @brief Removes the first log entry from the ring buffer for the consumer
+/// thread. This function must be called after slf_log_store_get to complete the
+/// removal of a log entry from the buffer. Only one thread should call this
+/// function.
+/// @note slf_log_store_get must be called first, and there must be exactly one
+/// call to this function per call to slf_log_store_get
 void slf_log_store_remove(void);
 
 #endif
