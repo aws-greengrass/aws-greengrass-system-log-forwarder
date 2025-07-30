@@ -27,5 +27,5 @@ Manifests:
       run: |
         {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
           --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} \
-          --logGroup {configuration:/logGroup} --logStream {configuration:/logStream} \ 
+          --logGroup {configuration:/logGroup} --logStream {configuration:/logStream} \
           --thingName {iot:thingName}
