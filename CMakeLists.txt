@@ -223,6 +223,12 @@ add_library(aws_sigv4 ${SIGV4_SOURCES})
 target_include_directories(aws_sigv4 PUBLIC ${SIGV4_INCLUDE_PUBLIC_DIRS})
 target_include_directories(aws_sigv4 PUBLIC dep_modules/aws-sigv4/)
 
+# Add backoff_algorithm
+include("${backoff_algorithm_SOURCE_DIR}/backoffAlgorithmFilePaths.cmake")
+add_library(backoff_algorithm ${BACKOFF_ALGORITHM_SOURCES})
+target_include_directories(backoff_algorithm
+                           PUBLIC ${BACKOFF_ALGORITHM_INCLUDE_PUBLIC_DIRS})
+
 #
 # Build Executable
 #
@@ -244,8 +250,9 @@ target_compile_definitions(system-log-forwarder
 
 target_include_directories(system-log-forwarder PRIVATE include)
 
-target_link_libraries(system-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4
-                                                   PkgConfig::openssl)
+target_link_libraries(
+  system-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4 backoff_algorithm
+                               PkgConfig::openssl)
 
 if(NOT has_argp)
   target_link_libraries(system-log-forwarder PRIVATE argp)
