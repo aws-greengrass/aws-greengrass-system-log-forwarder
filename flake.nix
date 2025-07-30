@@ -19,6 +19,7 @@
           fileset = lib.fileset.unions [
             ./CMakeLists.txt
             ./src
+            ./include
             ./fc_deps.json
             ./.clang-tidy
             ./dep_modules
