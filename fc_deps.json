@@ -9,6 +9,11 @@
     "rev": "f0409ced6c2c9430f0e972019b7e8f20bbf58f4e",
     "hash": "sha256-6is4ymM/Ct9JntgpFHF4Vlv5+GUwy0HZvEiEV+ALJkw="
   },
+  "backoff_algorithm": {
+    "url": "https://github.com/FreeRTOS/backoffAlgorithm.git",
+    "rev": "f2f3bb2d8310f7cb48baa3ee64b635a5d66f838b",
+    "hash": "sha256-KlqFwW2mQ85ySAaSON5njoz8SfepKws1xgDSEc/mZeM="
+  },
   "ggl_sdk": {
     "url": "https://github.com/aws-greengrass/aws-greengrass-sdk-lite.git",
     "rev": "6e4b5946dc99ef18ae03c8715df0f6559aa2eef4",
