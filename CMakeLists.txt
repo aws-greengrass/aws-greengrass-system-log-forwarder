@@ -242,6 +242,8 @@ add_executable(system-log-forwarder ${SRCS})
 target_compile_definitions(system-log-forwarder
                            PRIVATE "GGL_MODULE=(\"system-log-forwarder\")")
 
+target_include_directories(system-log-forwarder PRIVATE include)
+
 target_link_libraries(system-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4
                                                    PkgConfig::openssl)
 
