@@ -171,6 +171,17 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
     return 0;
 }
 
+static GglError validate_slf_config(Config *config) {
+    // maxUploadIntervalSec must not be greater than 24 hours, to ensure all log
+    // events are within the same 24 hour period
+    if (config->maxUploadIntervalSec > 86400) {
+        GGL_LOGE("Configuration maxUploadIntervalSec must not be greater than "
+                 "24 hours");
+        return GGL_ERR_INVALID;
+    }
+    return GGL_ERR_OK;
+}
+
 static struct argp argp = { opts, arg_parser, 0, doc, 0, 0, 0 };
 
 int main(int argc, char *argv[]) {
@@ -202,6 +213,12 @@ int main(int argc, char *argv[]) {
         config.port.data
     );
 
+    GglError ret = validate_slf_config(&config);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Error validating component configuration");
+        return 1;
+    }
+
     pthread_t consumer_tid;
 
     // Tell journalctl that fancy thing such as colour and paging aren't
@@ -211,7 +228,7 @@ int main(int argc, char *argv[]) {
 
     pthread_create(&consumer_tid, NULL, consumer_thread, &config);
 
-    GglError ret = producer_thread(config);
+    ret = producer_thread(config);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Producer thread failed.");
     }
