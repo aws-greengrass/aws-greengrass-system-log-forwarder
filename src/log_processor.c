@@ -56,6 +56,45 @@ GglError slf_upload_prefix_format(
     return GGL_ERR_OK;
 }
 
+static GglError escape_json_string(GglByteVec *dest, GglBuffer src) {
+    for (size_t i = 0; i < src.len; i++) {
+        uint8_t c = src.data[i];
+        switch (c) {
+        case '"':
+            if (ggl_byte_vec_append(dest, GGL_STR("\\\"")) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        case '\\':
+            if (ggl_byte_vec_append(dest, GGL_STR("\\\\")) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        case '\n':
+            if (ggl_byte_vec_append(dest, GGL_STR("\\n")) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        case '\r':
+            if (ggl_byte_vec_append(dest, GGL_STR("\\r")) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        case '\t':
+            if (ggl_byte_vec_append(dest, GGL_STR("\\t")) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        default:
+            if (ggl_byte_vec_push(dest, c) != GGL_ERR_OK) {
+                return GGL_ERR_NOMEM;
+            }
+            break;
+        }
+    }
+    return GGL_ERR_OK;
+}
+
 static GglError format_log_events(
     GglByteVec *upload_doc,
     GglBuffer log,
@@ -78,7 +117,10 @@ static GglError format_log_events(
     upload_doc->buf.len += tmp_timestamp.len;
 
     ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR(",\"message\":\""));
-    ggl_byte_vec_chain_append(&ret, upload_doc, log);
+    ret = escape_json_string(upload_doc, log);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
     ggl_byte_vec_chain_append(&ret, upload_doc, GGL_STR("\"}"));
 
     return ret;
@@ -91,9 +133,9 @@ static size_t calculate_json_message_overhead(
     if (ret != GGL_ERR_OK) {
         return 0;
     }
-    size_t header_size = strlen("{timestamp\": ")
+    size_t header_size = strlen("{\"timestamp\":")
         + strlen((char *) timestamp_as_buffer.data)
-        + strlen("\", \"message\":\"\"},");
+        + strlen(",\"message\":\"\"},");
     return header_size;
 }
 
@@ -153,8 +195,7 @@ GglError slf_process_log(
 
     if (slf_log_store_get(&log, &timestamp)) {
         if (log.len > 0) {
-            GGL_LOGD("Consumer: %.*s", (int) log.len, log.data);
-            // Remove the new line character from the logs
+            //  Remove the new line character from the logs
             if ((log.data[log.len - 1]) == '\n') {
                 log.len--;
             }
@@ -166,9 +207,13 @@ GglError slf_process_log(
                 return GGL_ERR_NOMEM;
             }
 
+            // Estimate worst-case for JSON escaping (each char could become 2)
+            size_t escaped_log_size = log.len * 2;
+
             if (upload_doc->capacity
                 > (upload_doc->buf.len
-                   + (log.len + json_message_overhead_size + strlen("]}")))) {
+                   + (escaped_log_size + json_message_overhead_size
+                      + strlen("]}")))) {
                 ret = format_log_events(
                     upload_doc, log, timestamp, *number_of_logs_added
                 );
