@@ -139,6 +139,25 @@ static size_t calculate_json_message_overhead(
     return header_size;
 }
 
+static GglError null_terminate_credentials(
+    SigV4Details *sigv4_details, GglArena *alloc
+) {
+    // ensure credentials are within the same arena
+    if (!ggl_arena_owns(alloc, sigv4_details->access_key_id.data)) {
+        // Environment variables or other sources are already null-terminated
+        return GGL_ERR_OK;
+    }
+
+    // TES credentials in arena - need null termination
+    // Note: TES parsing should have allocated len+1 bytes for this
+    sigv4_details->access_key_id.data[sigv4_details->access_key_id.len] = '\0';
+    sigv4_details->secret_access_key.data[sigv4_details->secret_access_key.len]
+        = '\0';
+    sigv4_details->session_token.data[sigv4_details->session_token.len] = '\0';
+
+    return GGL_ERR_OK;
+}
+
 static GglError upload_and_reset(
     GglByteVec *upload_doc, uint16_t *number_of_logs_added, const Config *config
 ) {
@@ -157,11 +176,20 @@ static GglError upload_and_reset(
     /* Set up SigV4 credentials */
     // All the values must be null terminated
     SigV4Details sigv4_details = { .aws_service = GGL_STR("logs") };
-    uint8_t credentials_mem[4096] = { 0 };
-    GglArena cred_alloc = ggl_arena_init(GGL_BUF(credentials_mem));
+    // Clear and reuse static buffer to ensure memory remains valid
+    static uint8_t g_credentials_mem[4096];
+    memset(g_credentials_mem, 0, sizeof(g_credentials_mem));
+
+    GglArena cred_alloc = ggl_arena_init(GGL_BUF(g_credentials_mem));
     ret = get_credentials_chain_credentials(&sigv4_details, &cred_alloc);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Error when retrieving AWS credentials.");
+        return ret;
+    }
+
+    ret = null_terminate_credentials(&sigv4_details, &cred_alloc);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to null-terminate credentials");
         return ret;
     }
 

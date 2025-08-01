@@ -186,6 +186,18 @@ static GglError parse_credentials_from_response(
     SigV4Details *credentials, GglBuffer response_body, GglArena *alloc
 ) {
     GGL_LOGT("Parsing credentials from response body");
+    GGL_LOGD(
+        "Arena before JSON decode - used: %u, capacity: %u, remaining: %u",
+        alloc->index,
+        alloc->capacity,
+        alloc->capacity - alloc->index
+    );
+    GGL_LOGD(
+        "Arena memory before decode: %.*s",
+        (int) (alloc->index < 200 ? alloc->index : 200),
+        alloc->mem
+    );
+
     GglObject body_obj;
     GglError ret = ggl_json_decode_destructive(response_body, alloc, &body_obj);
     if (ret != GGL_ERR_OK) {
@@ -333,8 +345,18 @@ static GglError make_cred_call(
 
     if (response.pBody && response.bodyLen > 0) {
         GGL_LOGD("HTTP response body received.");
+
+        // Copy response body into arena for in-place processing
+        uint8_t *arena_body
+            = GGL_ARENA_ALLOCN(alloc, uint8_t, response.bodyLen);
+        if (arena_body == NULL) {
+            GGL_LOGE("Failed to allocate arena memory for response body.");
+            return GGL_ERR_NOMEM;
+        }
+        memcpy(arena_body, response.pBody, response.bodyLen);
+
         GglBuffer response_body
-            = { .data = (uint8_t *) response.pBody, .len = response.bodyLen };
+            = { .data = arena_body, .len = response.bodyLen };
         GglError ret = parse_credentials_from_response(
             response_credentials, response_body, alloc
         );
