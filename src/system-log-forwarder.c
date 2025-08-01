@@ -74,8 +74,6 @@ static GglError producer_thread(Config config) {
 
     char buffer[MAX_LINE_LENGTH] = { 0 };
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        GGL_LOGD("Producer: %s", buffer);
-
         struct timeval tv;
         int time_status = gettimeofday(&tv, NULL);
         if (time_status != 0) {
