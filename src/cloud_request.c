@@ -271,6 +271,7 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
         return GGL_ERR_FATAL;
     }
 
@@ -287,6 +288,7 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
         return GGL_ERR_FATAL;
     }
 
@@ -303,6 +305,7 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
         return GGL_ERR_FATAL;
     }
 
@@ -320,6 +323,8 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
     }
     http_error = HTTPClient_AddHeader(
         &request_headers, "Accept", strlen("Accept"), "*/*", strlen("*/*")
@@ -331,6 +336,8 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
     }
 
     http_error = HTTPClient_AddHeader(
@@ -347,6 +354,8 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
     }
     http_error = HTTPClient_AddHeader(
         &request_headers,
@@ -362,6 +371,8 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
     }
 
     GGL_LOGT("Generating SigV4 authorization header");
@@ -413,6 +424,8 @@ static GglError send_http_request(
             http_error,
             slf_http_status_to_string(http_error)
         );
+        close_tls_connection(tls);
+        return GGL_ERR_FATAL;
     }
 
     static uint8_t local_response_buffer[MAX_RESPONSE_BUFFER_SIZE] = { 0 };
