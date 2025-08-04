@@ -63,7 +63,7 @@ static int32_t hash_final(
 }
 
 static GglError translate_sigv4_error(SigV4Status_t status) {
-    GglError ret;
+    GglError ret = { 0 };
 
     switch (status) {
     case SigV4Success:
@@ -113,7 +113,7 @@ static GglError aws_sigv4_generate_header(
     GglBuffer http_method,
     GglBuffer query
 ) {
-    char timestamp[17]; // YYYYMMDDTHHMMSSz\0
+    char timestamp[17] = { 0 }; // YYYYMMDDTHHMMSSz\0
     EVP_MD_CTX *md_context = EVP_MD_CTX_new();
     if (md_context == NULL) {
         GGL_LOGE("Failed to create EVP_MD_CTX");
@@ -170,8 +170,8 @@ static GglError aws_sigv4_generate_header(
         .pDateIso8601 = timestamp,
     };
 
-    uint8_t *signature;
-    size_t signature_len;
+    uint8_t *signature = NULL;
+    size_t signature_len = 0;
 
     SigV4Status_t status = SigV4_GenerateHTTPAuthorization(
         &PARAMS,
@@ -190,8 +190,8 @@ static GglError aws_sigv4_generate_header(
 size_t aws_sigv4_get_iso8601_time(char *buffer, size_t len) {
     assert(buffer != NULL);
     assert(len >= 17);
-    struct timeval tv;
-    struct tm tm_info;
+    struct timeval tv = { 0 };
+    struct tm tm_info = { 0 };
 
     if (gettimeofday(&tv, NULL) != 0) {
         // Return an error to the caller.
