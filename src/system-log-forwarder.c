@@ -224,7 +224,8 @@ static GglError producer_thread(Config config) {
 }
 
 static char doc[] = "system-log-forwarder -- AWS Greengrass component for "
-                    "forwarding logs to CloudWatch";
+                    "forwarding logs to CloudWatch\n"
+                    "Required arguments: --logGroup, --thingName";
 
 static error_t safe_str_to_int(const char *str, int *result) {
     long temp_val = strtol(str, NULL, 10);
@@ -309,7 +310,7 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
     }
     case ARGP_KEY_END:
         if (config->logGroup.len == 0 || config->thingName.len == 0) {
-            GGL_LOGW("Error: logGroup and thingName are required");
+            GGL_LOGE("Error: logGroup and thingName are required");
             // NOLINTNEXTLINE(concurrency-mt-unsafe)
             argp_usage(state);
         }
@@ -329,6 +330,12 @@ static GglError validate_slf_config(Config *config) {
                  "24 hours");
         return GGL_ERR_INVALID;
     }
+
+    if (config->logStream.len == 0) {
+        config->logStream = config->thingName;
+        GGL_LOGI("logStream not provided, using thingName as logStream");
+    }
+
     return GGL_ERR_OK;
 }
 
@@ -346,6 +353,12 @@ int main(int argc, char *argv[]) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, &config);
 
+    GglError ret = validate_slf_config(&config);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Error validating component configuration");
+        return 1;
+    }
+
     GGL_LOGD(
         "Config: \n maxUploadIntervalSec=%ds \n maxRetriesCount=%d \n "
         "bufferCapacity=%zu \n logGroup=%.*s \n logStream=%.*s \n "
@@ -362,12 +375,6 @@ int main(int argc, char *argv[]) {
         (int) config.port.len,
         config.port.data
     );
-
-    GglError ret = validate_slf_config(&config);
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Error validating component configuration");
-        return 1;
-    }
 
     pthread_t consumer_tid;
 
