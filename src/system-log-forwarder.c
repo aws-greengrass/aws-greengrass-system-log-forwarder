@@ -27,6 +27,7 @@
 #include <stdlib.h>
 
 #define MAX_TIMESTAMP_DIGITS (26) // Max digits for int64_t + null terminator
+#define MAX_RING_BUFFER_RETRIES (3) // Max retries for ring buffer operations
 
 static GglError escape_json_string_ggl(
     char *dest,
@@ -165,11 +166,20 @@ static void process_journal_entry(sd_journal *journal, char *buffer) {
 
     GglError ggl_ret = slf_log_store_add(log_buf, timestamp);
     if (ggl_ret == GGL_ERR_NOMEM) {
-        // Ring buffer full - remove oldest entry and retry
-        slf_log_store_remove();
-        ggl_ret = slf_log_store_add(log_buf, timestamp);
+        // Ring buffer full - remove entries until space is available
+        uint8_t retry_count = 0;
+
+        while (ggl_ret == GGL_ERR_NOMEM && retry_count < MAX_RING_BUFFER_RETRIES
+        ) {
+            slf_log_store_remove();
+            ggl_ret = slf_log_store_add(log_buf, timestamp);
+            retry_count++;
+        }
+
         if (ggl_ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to replace and add to the ring buffer.");
+            GGL_LOGE(
+                "Failed to add to ring buffer after %u retries", retry_count
+            );
         }
         return;
     }
