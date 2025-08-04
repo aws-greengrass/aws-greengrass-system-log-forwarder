@@ -182,6 +182,7 @@ endforeach()
 find_package(PkgConfig REQUIRED)
 
 pkg_search_module(openssl REQUIRED IMPORTED_TARGET openssl)
+pkg_search_module(libsystemd REQUIRED IMPORTED_TARGET libsystemd)
 
 include(CheckCSourceCompiles)
 
@@ -252,7 +253,7 @@ target_include_directories(system-log-forwarder PRIVATE include)
 
 target_link_libraries(
   system-log-forwarder PRIVATE ggl-sdk coreHTTP aws_sigv4 backoff_algorithm
-                               PkgConfig::openssl)
+                               PkgConfig::openssl PkgConfig::libsystemd)
 
 if(NOT has_argp)
   target_link_libraries(system-log-forwarder PRIVATE argp)

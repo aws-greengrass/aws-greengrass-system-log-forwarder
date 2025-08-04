@@ -70,12 +70,12 @@
           };
 
         pname = "gg-sys-log-forwarder";
-        package = { pkgs, openssl, lib, stdenv, pkg-config, cmake, ninja, argp-standalone, defaultMeta }:
+        package = { pkgs, openssl, lib, stdenv, pkg-config, cmake, ninja, argp-standalone, systemdLibs, defaultMeta }:
           stdenv.mkDerivation {
             name = "gg-sys-log-forwarder";
             src = filteredSrc;
             nativeBuildInputs = [ pkg-config cmake ninja ];
-            buildInputs = [ openssl ] ++ lib.optional (!stdenv.hostPlatform.isGnu) argp-standalone;
+            buildInputs = [ openssl systemdLibs ] ++ lib.optional (!stdenv.hostPlatform.isGnu) argp-standalone;
             cmakeBuildType = "MinSizeRel";
             cmakeFlags = (fetchContentFlags pkgs) ++ [ "-DENABLE_WERROR=1" ];
             dontStrip = true;
@@ -84,16 +84,16 @@
 
         checks =
           let
-            clangBuildDir = { pkgs, pkg-config, clang-tools, openssl, cmake, ... }:
+            clangBuildDir = { pkgs, pkg-config, clang-tools, openssl, systemd, cmake, ... }:
               (llvmStdenv pkgs).mkDerivation {
                 name = "clang-cmake-build-dir";
                 nativeBuildInputs = [ pkg-config clang-tools ];
-                buildInputs = [ openssl ];
+                buildInputs = [ openssl systemd ];
                 buildPhase = ''
                   export PKG_CONFIG_PATH="${openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
                   ${cmake}/bin/cmake -B $out -S ${filteredSrc} \
                     -D CMAKE_BUILD_TYPE=Debug ${toString (fetchContentFlags pkgs)} \
-                    -D CMAKE_C_FLAGS="-I${openssl.dev}/include"
+                    -D CMAKE_C_FLAGS="-I${openssl.dev}/include -I${systemd.dev}/include"
                   rm $out/CMakeFiles/CMakeConfigureLog.yaml
                 '';
                 dontUnpack = true;
@@ -130,7 +130,8 @@
                 $(fd . ${filteredSrc}/ -e c) -- \
                 -Xiwyu --error -Xiwyu --check_also="${filteredSrc}/*" \
                 -Xiwyu --mapping_file=${./.}/misc/iwyu_mappings.yml \
-                -I${pkgs.openssl.dev}/include |\
+                -I${pkgs.openssl.dev}/include \
+                -I${pkgs.systemd.dev}/include |\
                 { grep error: || true; } |\
                 sed 's|\(.*\)error:\(.*\)|'$white'\1'$red'error:'$white'\2'$clear'|' |\
                 sed 's|${filteredSrc}/||'
