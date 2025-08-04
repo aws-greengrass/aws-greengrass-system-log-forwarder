@@ -27,12 +27,15 @@ static GglError get_timestamp_as_string(
         "%" PRId64,
         timestamp
     );
-    if ((ret_check > 0) && ((size_t) ret_check < timestamp_as_buffer->len)) {
-        timestamp_as_buffer->len = (size_t) ret_check;
-    } else {
+    if (ret_check < 0) {
+        GGL_LOGE("snprintf encoding error for timestamp.");
+        return GGL_ERR_FAILURE;
+    }
+    if ((size_t) ret_check >= timestamp_as_buffer->len) {
         GGL_LOGE("Not enough memory to store timestamp.");
         return GGL_ERR_NOMEM;
     }
+    timestamp_as_buffer->len = (size_t) ret_check;
     return GGL_ERR_OK;
 }
 
@@ -131,7 +134,7 @@ static GglError upload_and_reset(
     // All the values must be null terminated
     SigV4Details sigv4_details = { .aws_service = GGL_STR("logs") };
     // Clear and reuse static buffer to ensure memory remains valid
-    static uint8_t g_credentials_mem[4096];
+    static uint8_t g_credentials_mem[4096] = { 0 };
     memset(g_credentials_mem, 0, sizeof(g_credentials_mem));
 
     GglArena cred_alloc = ggl_arena_init(GGL_BUF(g_credentials_mem));
@@ -176,8 +179,8 @@ GglError slf_process_log(
     uint16_t *number_of_logs_added,
     const Config *config
 ) {
-    GglBuffer log;
-    uint64_t timestamp;
+    GglBuffer log = { .data = NULL, .len = 0 };
+    uint64_t timestamp = 0U;
     GglError ret = GGL_ERR_OK;
 
     if (slf_log_store_get(&log, &timestamp)) {
