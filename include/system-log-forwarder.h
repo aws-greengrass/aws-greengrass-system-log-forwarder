@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 /// Maximum length in bytes for a single log line including null terminator
-#define MAX_LINE_LENGTH (2048)
+#define MAX_LOG_LINE_LENGTH (1024)
 /// Maximum length in bytes for AWS IoT Thing name including null terminator
 #define THING_NAME_MAX_LENGTH (128)
 /// Maximum length in bytes for GGL IPC service unique identifier
