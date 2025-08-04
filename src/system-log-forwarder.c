@@ -9,6 +9,7 @@
 #include <argp.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <ggl/json_encode.h>
 #include <ggl/log.h>
 #include <ggl/sdk.h>
 #include <ggl/utils.h>
@@ -23,6 +24,37 @@
 #include <stdlib.h>
 
 #define MAX_TIMESTAMP_DIGITS (26) // Max digits for int64_t + null terminator
+
+static GglError escape_json_string_ggl(
+    char *dest,
+    size_t dest_size,
+    const char *src,
+    size_t src_len,
+    size_t *escaped_len
+) {
+    GglBuffer src_buf = { .data = (uint8_t *) src, .len = src_len };
+    GglObject str_obj = ggl_obj_buf(src_buf);
+
+    GglBuffer dest_buf = { .data = (uint8_t *) dest, .len = dest_size };
+    GglError ret = ggl_json_encode(str_obj, &dest_buf);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    // ggl_json_encode includes quotes, but we need the content without quotes
+    // since we add quotes in the JSON structure manually
+    if (dest_buf.len >= 2 && dest[0] == '"' && dest[dest_buf.len - 1] == '"') {
+        // Remove surrounding quotes and shift content
+        memmove(dest, dest + 1, dest_buf.len - 2);
+        *escaped_len = dest_buf.len - 2;
+        dest[*escaped_len] = '\0';
+    } else {
+        *escaped_len = dest_buf.len;
+        dest[*escaped_len] = '\0';
+    }
+
+    return GGL_ERR_OK;
+}
 
 static void *consumer_thread(void *arg) {
     Config *config = (Config *) arg;
