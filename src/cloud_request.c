@@ -518,15 +518,21 @@ static GglError slf_ensure_log_group_exists(
 
     if (ret != GGL_ERR_OK) {
         // Check if it's just because the log group already exists
-        if (response.pBody && response.bodyLen > 0
-            && strstr((char *) response.pBody, "ResourceAlreadyExistsException")
-                != NULL) {
-            GGL_LOGD(
-                "Log group '%.*s' already exists",
-                (int) config.logGroup.len,
-                config.logGroup.data
-            );
-            return GGL_ERR_OK;
+        if (response.pBody && response.bodyLen > 0) {
+            GglBuffer response_buf = { .data = (uint8_t *) response.pBody,
+                                       .len = response.bodyLen };
+            if (ggl_buffer_contains(
+                    response_buf,
+                    GGL_STR("ResourceAlreadyExistsException"),
+                    NULL
+                )) {
+                GGL_LOGD(
+                    "Log group '%.*s' already exists",
+                    (int) config.logGroup.len,
+                    config.logGroup.data
+                );
+                return GGL_ERR_OK;
+            }
         }
 
         GGL_LOGE(
@@ -594,17 +600,22 @@ static GglError slf_ensure_log_stream_exists(
 
     if (result != GGL_ERR_OK) {
         // Check if it's just because the log stream already exists
-        if (create_response.pBody && create_response.bodyLen > 0
-            && strstr(
-                   (char *) create_response.pBody,
-                   "ResourceAlreadyExistsException"
-               ) != NULL) {
-            GGL_LOGD(
-                "Log stream '%.*s' already exists",
-                (int) config.logStream.len,
-                config.logStream.data
-            );
-            return GGL_ERR_OK;
+        if (create_response.pBody && create_response.bodyLen > 0) {
+            GglBuffer response_buf
+                = { .data = (uint8_t *) create_response.pBody,
+                    .len = create_response.bodyLen };
+            if (ggl_buffer_contains(
+                    response_buf,
+                    GGL_STR("ResourceAlreadyExistsException"),
+                    NULL
+                )) {
+                GGL_LOGD(
+                    "Log stream '%.*s' already exists",
+                    (int) config.logStream.len,
+                    config.logStream.data
+                );
+                return GGL_ERR_OK;
+            }
         }
         GGL_LOGE(
             "Failed to create log stream '%.*s'",
@@ -676,22 +687,52 @@ GglError slf_upload_logs_to_cloud_watch(
         endpoint.path
     );
 
-    // Ensure log group and stream exist before uploading logs
-    ret = slf_ensure_log_group_exists(sigv4_details, endpoint, config);
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to ensure log group exists");
-        return ret;
-    }
-
-    ret = slf_ensure_log_stream_exists(sigv4_details, endpoint, config);
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to ensure log stream exists");
-        return ret;
-    }
-
+    // First attempt to upload logs directly
+    HTTPResponse_t response = { 0 };
     GglError upload_result = send_http_request(
-        endpoint, log_lines, sigv4_details, "Logs_20140328.PutLogEvents", NULL
+        endpoint,
+        log_lines,
+        sigv4_details,
+        "Logs_20140328.PutLogEvents",
+        &response
     );
+
+    // If upload failed, check if it's due to missing resources
+    if (upload_result != GGL_ERR_OK && response.pBody && response.bodyLen > 0) {
+        GglBuffer response_buf
+            = { .data = (uint8_t *) response.pBody, .len = response.bodyLen };
+
+        // Check for ResourceNotFoundException indicating missing log group or
+        // stream
+        if (ggl_buffer_contains(
+                response_buf, GGL_STR("ResourceNotFoundException"), NULL
+            )) {
+            GGL_LOGI("Resource not found, creating log group and stream");
+
+            // Create log group first
+            ret = slf_ensure_log_group_exists(sigv4_details, endpoint, config);
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE("Failed to ensure log group exists");
+                return ret;
+            }
+
+            // Then create log stream
+            ret = slf_ensure_log_stream_exists(sigv4_details, endpoint, config);
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE("Failed to ensure log stream exists");
+                return ret;
+            }
+
+            // Retry the upload after creating resources
+            upload_result = send_http_request(
+                endpoint,
+                log_lines,
+                sigv4_details,
+                "Logs_20140328.PutLogEvents",
+                NULL
+            );
+        }
+    }
 
     if (upload_result == GGL_ERR_OK) {
         GGL_LOGI("Successfully uploaded logs to CloudWatch");
