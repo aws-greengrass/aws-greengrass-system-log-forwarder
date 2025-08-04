@@ -144,6 +144,11 @@ static GglError upload_and_reset(
         return ret;
     }
 
+    assert(sigv4_details.aws_region.len > 0);
+    assert(sigv4_details.access_key_id.len > 0);
+    assert(sigv4_details.secret_access_key.len > 0);
+    assert(sigv4_details.session_token.len > 0);
+
     ret = null_terminate_credentials(&sigv4_details, &cred_alloc);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to null-terminate credentials");
