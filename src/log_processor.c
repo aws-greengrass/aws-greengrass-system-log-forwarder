@@ -126,9 +126,6 @@ static GglError upload_and_reset(
     }
 
     GGL_LOGI("Upload document is full, uploading now.");
-    GGL_LOGT(
-        "Upload Document: %.*s", (int) upload_doc->buf.len, upload_doc->buf.data
-    );
 
     /* Set up SigV4 credentials */
     // All the values must be null terminated

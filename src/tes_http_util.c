@@ -186,17 +186,6 @@ static GglError parse_credentials_from_response(
     SigV4Details *credentials, GglBuffer response_body, GglArena *alloc
 ) {
     GGL_LOGT("Parsing credentials from response body");
-    GGL_LOGD(
-        "Arena before JSON decode - used: %u, capacity: %u, remaining: %u",
-        alloc->index,
-        alloc->capacity,
-        alloc->capacity - alloc->index
-    );
-    GGL_LOGD(
-        "Arena memory before decode: %.*s",
-        (int) (alloc->index < 200 ? alloc->index : 200),
-        alloc->mem
-    );
 
     GglObject body_obj;
     GglError ret = ggl_json_decode_destructive(response_body, alloc, &body_obj);
