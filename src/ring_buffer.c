@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ring_buffer.h"
+#include "system-log-forwarder.h"
 #include <assert.h>
 #include <errno.h>
 #include <ggl/attr.h>
@@ -18,8 +19,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#define MAX_LOG_LEN 512
 
 typedef struct {
     uint64_t timestamp;
@@ -50,7 +49,7 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
     }
 
     size_t page_size = (size_t) page_size_long;
-    if (page_size <= offsetof(LogEntry, log_line) + MAX_LOG_LEN) {
+    if (page_size <= offsetof(LogEntry, log_line) + MAX_LOG_LINE_LENGTH) {
         GGL_LOGE("Max log entry length cannot exceed system page size.");
         return GGL_ERR_INVALID;
     }
@@ -138,8 +137,8 @@ static size_t log_entry_len(size_t log_len) {
 
 GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
     GglBuffer truncated = log;
-    if (truncated.len > MAX_LOG_LEN) {
-        truncated.len = MAX_LOG_LEN;
+    if (truncated.len > MAX_LOG_LINE_LENGTH) {
+        truncated.len = MAX_LOG_LINE_LENGTH;
     }
 
     size_t required_len = log_entry_len(truncated.len);
@@ -161,7 +160,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
     );
 
     _Static_assert(
-        MAX_LOG_LEN <= UINT16_MAX,
+        MAX_LOG_LINE_LENGTH <= UINT16_MAX,
         "Max log entry length must be less than UINT16_MAX."
     );
 
