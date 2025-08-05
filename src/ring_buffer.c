@@ -31,6 +31,7 @@ static size_t end = 0;
 static atomic_size_t free_mem;
 static char *backing_mem;
 static bool initialized = false;
+static int backing_fd = -1;
 
 static size_t total_ring_buff_mem = (size_t) 1024 * 1024;
 
@@ -131,6 +132,7 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
         return GGL_ERR_FAILURE;
     }
 
+    backing_fd = fd;
     atomic_store_explicit(&free_mem, total_ring_buff_mem, memory_order_relaxed);
     initialized = true;
 
@@ -197,4 +199,20 @@ void slf_log_store_remove(void) {
     size_t len = log_entry_len(entry->log_len);
     front = (front + len) % total_ring_buff_mem;
     atomic_fetch_add_explicit(&free_mem, len, memory_order_acq_rel);
+}
+
+void slf_cleanup_ringbuf_state(void) {
+    if (backing_fd >= 0) {
+        close(backing_fd);
+        backing_fd = -1;
+    }
+    if (backing_mem != NULL) {
+        long page_size_long = sysconf(_SC_PAGESIZE);
+        if (page_size_long > 0) {
+            size_t page_size = (size_t) page_size_long;
+            munmap(backing_mem, total_ring_buff_mem + page_size);
+        }
+        backing_mem = NULL;
+    }
+    initialized = false;
 }
