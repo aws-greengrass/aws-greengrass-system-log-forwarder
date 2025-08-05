@@ -201,6 +201,7 @@ static GglError producer_thread(Config config) {
 
     GglError setup_ret = setup_journal(&journal);
     if (setup_ret != GGL_ERR_OK) {
+        slf_cleanup_ringbuf_state();
         return setup_ret;
     }
 
@@ -220,6 +221,7 @@ static GglError producer_thread(Config config) {
     }
 
     sd_journal_close(journal);
+    slf_cleanup_ringbuf_state();
     return GGL_ERR_OK;
 }
 
