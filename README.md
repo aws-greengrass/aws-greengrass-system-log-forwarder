@@ -5,6 +5,9 @@ A generic component which uploads system logs to CloudWatch.
 This works by uploading active system logs directly to CloudWatch using
 CloudWatch's HTTPS API.
 
+The current version isn't meant to work with prolonged offline devices and
+requires active internet connection.
+
 ### Build
 
 To build the project, you will need the following build dependencies:
