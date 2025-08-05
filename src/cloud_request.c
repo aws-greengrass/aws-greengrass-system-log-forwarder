@@ -641,31 +641,17 @@ static GglError slf_ensure_log_stream_exists(
     return result;
 }
 
-GglError slf_upload_logs_to_cloud_watch(
-    GglBuffer log_lines, SigV4Details sigv4_details, Config config
+static GglError slf_build_endpoint(
+    SigV4Details sigv4_details, Config config, HttpEndpoint *endpoint
 ) {
-    GGL_LOGT("Starting to send logs");
-
-    // Validate region configuration
-    if (sigv4_details.aws_region.len == 0
-        || sigv4_details.aws_region.data == NULL) {
-        GGL_LOGE(
-            "Region configuration is empty or invalid - len: %zu, data: %p",
-            sigv4_details.aws_region.len,
-            (void *) sigv4_details.aws_region.data
-        );
+    if ((sigv4_details.aws_region.len == 0U)
+        || (sigv4_details.aws_region.data == NULL)) {
+        GGL_LOGE("Invalid region configuration");
         return GGL_ERR_INVALID;
     }
 
     uint8_t hosturl_mem[64];
     GglByteVec hosturl = GGL_BYTE_VEC(hosturl_mem);
-
-    GGL_LOGI(
-        "Constructing hostname with aws_region: '%.*s' (len=%zu)",
-        (int) sigv4_details.aws_region.len,
-        sigv4_details.aws_region.data,
-        sigv4_details.aws_region.len
-    );
 
     GglError ret = ggl_byte_vec_append(&hosturl, GGL_STR("logs."));
     ggl_byte_vec_chain_append(&ret, &hosturl, sigv4_details.aws_region);
@@ -676,18 +662,45 @@ GglError slf_upload_logs_to_cloud_watch(
         return ret;
     }
 
-    HttpEndpoint endpoint = { .host = (char *) hosturl.buf.data,
-                              .port = (char *) config.port.data,
-                              .path = "/" };
+    endpoint->host = (char *) hosturl.buf.data;
+    endpoint->port = (char *) config.port.data;
+    endpoint->path = "/";
 
-    GGL_LOGI(
-        "Endpoint configured: %s:%s%s",
-        endpoint.host,
-        endpoint.port,
-        endpoint.path
+    return GGL_ERR_OK;
+}
+
+static bool slf_is_resource_not_found(HTTPResponse_t response) {
+    if ((response.pBody == NULL) || (response.bodyLen == 0U)) {
+        return false;
+    }
+
+    GglBuffer response_buf
+        = { .data = (uint8_t *) response.pBody, .len = response.bodyLen };
+    return ggl_buffer_contains(
+        response_buf, GGL_STR("ResourceNotFoundException"), NULL
     );
+}
 
-    // First attempt to upload logs directly
+static GglError slf_create_resources(
+    SigV4Details sigv4_details, HttpEndpoint endpoint, Config config
+) {
+    GglError ret = slf_ensure_log_group_exists(sigv4_details, endpoint, config);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    return slf_ensure_log_stream_exists(sigv4_details, endpoint, config);
+}
+
+GglError slf_upload_logs_to_cloud_watch(
+    GglBuffer log_lines, SigV4Details sigv4_details, Config config
+) {
+    HttpEndpoint endpoint;
+    GglError ret = slf_build_endpoint(sigv4_details, config, &endpoint);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
     HTTPResponse_t response = { 0 };
     GglError upload_result = send_http_request(
         endpoint,
@@ -697,41 +710,21 @@ GglError slf_upload_logs_to_cloud_watch(
         &response
     );
 
-    // If upload failed, check if it's due to missing resources
-    if (upload_result != GGL_ERR_OK && response.pBody && response.bodyLen > 0) {
-        GglBuffer response_buf
-            = { .data = (uint8_t *) response.pBody, .len = response.bodyLen };
+    if ((upload_result != GGL_ERR_OK) && slf_is_resource_not_found(response)) {
+        GGL_LOGI("Creating missing CloudWatch resources");
 
-        // Check for ResourceNotFoundException indicating missing log group or
-        // stream
-        if (ggl_buffer_contains(
-                response_buf, GGL_STR("ResourceNotFoundException"), NULL
-            )) {
-            GGL_LOGI("Resource not found, creating log group and stream");
-
-            // Create log group first
-            ret = slf_ensure_log_group_exists(sigv4_details, endpoint, config);
-            if (ret != GGL_ERR_OK) {
-                GGL_LOGE("Failed to ensure log group exists");
-                return ret;
-            }
-
-            // Then create log stream
-            ret = slf_ensure_log_stream_exists(sigv4_details, endpoint, config);
-            if (ret != GGL_ERR_OK) {
-                GGL_LOGE("Failed to ensure log stream exists");
-                return ret;
-            }
-
-            // Retry the upload after creating resources
-            upload_result = send_http_request(
-                endpoint,
-                log_lines,
-                sigv4_details,
-                "Logs_20140328.PutLogEvents",
-                NULL
-            );
+        ret = slf_create_resources(sigv4_details, endpoint, config);
+        if (ret != GGL_ERR_OK) {
+            return ret;
         }
+
+        upload_result = send_http_request(
+            endpoint,
+            log_lines,
+            sigv4_details,
+            "Logs_20140328.PutLogEvents",
+            NULL
+        );
     }
 
     if (upload_result == GGL_ERR_OK) {
