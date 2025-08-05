@@ -74,6 +74,7 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
                 continue;
             }
             GGL_LOGE("ftruncate failed on memfd: %d.", errno);
+            close(fd);
             return GGL_ERR_FAILURE;
         }
 
@@ -91,6 +92,7 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     if (mmap_ret == MAP_FAILED) {
         GGL_LOGE("Failed to mmap backing memory space: %d.", errno);
+        close(fd);
         return GGL_ERR_FAILURE;
     }
 
@@ -107,6 +109,8 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     if (mmap_ret == MAP_FAILED) {
         GGL_LOGE("Failed to mmap backing memory memfd: %d.", errno);
+        munmap(backing_mem, total_ring_buff_mem + page_size);
+        close(fd);
         return GGL_ERR_FAILURE;
     }
 
@@ -121,6 +125,9 @@ GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     if (mmap_ret == MAP_FAILED) {
         GGL_LOGE("Failed to mmap wraparound page: %d.", errno);
+        munmap(backing_mem, total_ring_buff_mem);
+        munmap(backing_mem, total_ring_buff_mem + page_size);
+        close(fd);
         return GGL_ERR_FAILURE;
     }
 
