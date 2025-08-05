@@ -1,6 +1,7 @@
 // Function to upload logs to CloudWatch
 #include "cloud_request.h"
 #include "aws_sigv4.h"
+#include "slf_backoff.h"
 #include <core_http_client.h>
 #include <errno.h>
 #include <ggl/buffer.h>
@@ -21,6 +22,20 @@
 #define DATE_BUFFER_LEN (17)
 #define MAX_AUTH_HEADER_LEN (1024)
 #define MAX_SIGV4_HEADER_LEN (2048)
+
+// HTTP request retry configuration
+#define HTTP_RETRY_BASE_DELAY_MS (1000) // 1 second base delay
+#define HTTP_RETRY_MAX_DELAY_MS (64000) // 64 second max delay
+#define HTTP_RETRY_MAX_ATTEMPTS (3) // max 3 attempts
+
+typedef struct {
+    HttpEndpoint endpoint;
+    GglBuffer payload;
+    SigV4Details sigv4_details;
+    const char *target;
+    HTTPResponse_t *response_out;
+    GglError err;
+} HttpRequestRetryCtx;
 
 static int32_t transport_send(
     NetworkContext_t *network_context, const void *buffer, size_t bytes_to_send
@@ -197,7 +212,21 @@ const char *slf_http_status_to_string(HTTPStatus_t status) {
     }
 }
 
-static GglError send_http_request(
+static bool slf_can_retry_http_status(uint16_t status_code) {
+    switch (status_code) {
+    case 408: // Request timeout
+    case 429: // Too many requests
+    case 500: // Internal server error
+    case 502: // Bad gateway
+    case 503: // Service unavailable
+    case 504: // Gateway timeout
+        return true;
+    default:
+        return false;
+    }
+}
+
+static GglError send_http_request_impl(
     HttpEndpoint endpoint,
     GglBuffer payload,
     SigV4Details sigv4_details,
@@ -483,6 +512,68 @@ static GglError send_http_request(
 
     GGL_LOGT("HTTP request completed successfully");
     return GGL_ERR_OK;
+}
+
+static GglError http_request_retry_wrapper(void *ctx) {
+    HttpRequestRetryCtx *retry_ctx = (HttpRequestRetryCtx *) ctx;
+
+    GglError result = send_http_request_impl(
+        retry_ctx->endpoint,
+        retry_ctx->payload,
+        retry_ctx->sigv4_details,
+        retry_ctx->target,
+        retry_ctx->response_out
+    );
+
+    if (result == GGL_ERR_OK) {
+        retry_ctx->err = GGL_ERR_OK;
+        return GGL_ERR_OK;
+    }
+
+    // Check if we should retry based on the response status code
+    if (retry_ctx->response_out != NULL) {
+        HTTPResponse_t *response = retry_ctx->response_out;
+        if (slf_can_retry_http_status(response->statusCode)) {
+            GGL_LOGW(
+                "HTTP request failed with status %u, will retry",
+                response->statusCode
+            );
+            retry_ctx->err = result;
+            return GGL_ERR_FAILURE; // Trigger retry
+        }
+    }
+
+    retry_ctx->err = result;
+    return GGL_ERR_OK; // Don't retry
+}
+
+static GglError send_http_request(
+    HttpEndpoint endpoint,
+    GglBuffer payload,
+    SigV4Details sigv4_details,
+    const char *target,
+    HTTPResponse_t *response_out
+) {
+    HttpRequestRetryCtx ctx = { .endpoint = endpoint,
+                                .payload = payload,
+                                .sigv4_details = sigv4_details,
+                                .target = target,
+                                .response_out = response_out,
+                                .err = GGL_ERR_OK };
+
+    GglError ret = slf_backoff(
+        HTTP_RETRY_BASE_DELAY_MS,
+        HTTP_RETRY_MAX_DELAY_MS,
+        HTTP_RETRY_MAX_ATTEMPTS,
+        http_request_retry_wrapper,
+        &ctx
+    );
+
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    return ctx.err;
 }
 
 // Ensure log group exists by attempting to create it
