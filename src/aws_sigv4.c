@@ -9,6 +9,7 @@
 #include <ggl/buffer.h>
 #include <ggl/log.h>
 #include <ggl/vector.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/types.h>
 #include <sys/time.h>
@@ -24,6 +25,10 @@ static int32_t hash_init(void *ctx) {
         // value.
         ret = 0;
     } else {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        GGL_LOGE("EVP_DigestInit failed: %s", err_buf);
         ret = -1;
     }
 
@@ -39,6 +44,10 @@ static int32_t hash_update(void *ctx, const uint8_t *data, size_t data_len) {
         // value.
         ret = 0;
     } else {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        GGL_LOGE("EVP_DigestUpdate failed: %s", err_buf);
         ret = -1;
     }
     return ret;
@@ -56,6 +65,10 @@ static int32_t hash_final(
         // value.
         ret = 0;
     } else {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        GGL_LOGE("EVP_DigestFinal failed: %s", err_buf);
         ret = -1;
     }
 
