@@ -129,7 +129,7 @@ GglError upload_and_reset(
         return ret;
     }
 
-    GGL_LOGI("Upload document is full, uploading now.");
+    GGL_LOGI("Uploading document now.");
 
     /* Set up SigV4 credentials */
     // All the values must be null terminated
@@ -202,9 +202,11 @@ GglError slf_process_log(
                 return GGL_ERR_NOMEM;
             }
 
-            if (upload_doc->capacity
-                > (upload_doc->buf.len
-                   + (log.len + json_message_overhead_size + strlen("]}")))) {
+            size_t total_with_new_log = upload_doc->buf.len + log.len
+                + json_message_overhead_size + strlen("]}");
+            size_t upload_threshold = (upload_doc->capacity * 60) / 100;
+
+            if (total_with_new_log <= upload_threshold) {
                 ret = format_log_events(
                     upload_doc, log, timestamp, *number_of_logs_added
                 );

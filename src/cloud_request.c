@@ -489,7 +489,7 @@ static GglError send_http_request_impl(
         response.statusCode
     );
     if (response.pBody && response.bodyLen > 0) {
-        GGL_LOGD(
+        GGL_LOGT(
             "Response: %.*s", (int) response.bodyLen, (char *) response.pBody
         );
     }
