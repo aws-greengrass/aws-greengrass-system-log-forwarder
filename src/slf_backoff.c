@@ -70,7 +70,7 @@ static GglError backoff_wrapper(
         uint32_t rand_val = 0;
         GglError rand_err = get_random_value(&rand_val);
         if (rand_err != GGL_ERR_OK) {
-            return ret;
+            return rand_err;
         }
 
         uint16_t backoff_time = 0;
@@ -79,7 +79,8 @@ static GglError backoff_wrapper(
         );
 
         if (retry_status == BackoffAlgorithmRetriesExhausted) {
-            return ret;
+            GGL_LOGE("Fatal error: backoff algorithm exhausted.");
+            return GGL_ERR_FATAL;
         }
 
         GglError sleep_err = ggl_sleep_ms(backoff_time);
