@@ -16,6 +16,7 @@
 #include <ggl/vector.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 static GglError get_timestamp_as_string(
@@ -118,7 +119,7 @@ static GglError null_terminate_credentials(
     return GGL_ERR_OK;
 }
 
-static GglError upload_and_reset(
+GglError upload_and_reset(
     GglByteVec *upload_doc, uint16_t *number_of_logs_added, const Config *config
 ) {
     GglError ret = GGL_ERR_OK;
@@ -177,14 +178,18 @@ GglError slf_process_log(
     GglByteVec *upload_doc,
     GglBuffer timestamp_as_buffer,
     uint16_t *number_of_logs_added,
-    const Config *config
+    const Config *config,
+    bool *uploaded
 ) {
+    assert(*uploaded == false);
+
     GglBuffer log = { .data = NULL, .len = 0 };
     uint64_t timestamp = 0U;
     GglError ret = GGL_ERR_OK;
 
     if (slf_log_store_get(&log, &timestamp)) {
         if (log.len > 0) {
+            slf_log_store_remove();
             //  Remove the new line character from the logs
             if ((log.data[log.len - 1]) == '\n') {
                 log.len--;
@@ -223,6 +228,8 @@ GglError slf_process_log(
                     return ret;
                 }
 
+                *uploaded = true;
+
                 // Now process the current log entry with the reset buffer
                 ret = format_log_events(
                     upload_doc, log, timestamp, *number_of_logs_added
@@ -239,7 +246,6 @@ GglError slf_process_log(
 
             slf_log_store_remove();
             (*number_of_logs_added)++;
-            // TODO: Marker for future
             return GGL_ERR_EXPECTED;
         }
         // Got Empty Log

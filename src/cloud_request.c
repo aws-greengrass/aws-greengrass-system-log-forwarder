@@ -467,7 +467,7 @@ static GglError send_http_request_impl(
         *response_out = response;
     }
 
-    GGL_LOGT("Sending HTTP request to %s%s", endpoint.host, endpoint.path);
+    GGL_LOGD("Sending HTTP request to %s%s", endpoint.host, endpoint.path);
     GGL_LOGT("Request headers length: %zu", request_headers.headersLen);
     GGL_LOGT("Sending HTTP request with payload size: %zu", payload.len);
 
@@ -482,14 +482,14 @@ static GglError send_http_request_impl(
         &transport, &request_headers, payload.data, payload.len, &response, 0
     );
 
-    GGL_LOGT(
+    GGL_LOGD(
         "HTTP Status: %d (%s), Response Code: %u",
         status,
         slf_http_status_to_string(status),
         response.statusCode
     );
     if (response.pBody && response.bodyLen > 0) {
-        GGL_LOGT(
+        GGL_LOGD(
             "Response: %.*s", (int) response.bodyLen, (char *) response.pBody
         );
     }
@@ -741,7 +741,7 @@ static GglError slf_build_endpoint(
         return GGL_ERR_INVALID;
     }
 
-    uint8_t hosturl_mem[64];
+    static uint8_t hosturl_mem[64] = { 0 };
     GglByteVec hosturl = GGL_BYTE_VEC(hosturl_mem);
 
     GglError ret = ggl_byte_vec_append(&hosturl, GGL_STR("logs."));
