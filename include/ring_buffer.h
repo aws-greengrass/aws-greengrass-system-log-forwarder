@@ -52,9 +52,4 @@ bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
 /// call to this function per call to slf_log_store_get
 void slf_log_store_remove(void);
 
-/// @brief Cleans up ring buffer resources including file descriptor and memory
-/// mappings. This function should be called when the ring buffer is no longer
-/// needed to prevent resource leaks.
-void slf_cleanup_ringbuf_state(void);
-
 #endif
