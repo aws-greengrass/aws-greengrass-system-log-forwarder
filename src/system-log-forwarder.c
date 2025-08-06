@@ -20,6 +20,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <systemd/sd-journal.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -79,8 +80,15 @@ static void *consumer_thread(void *arg) {
 
     uint16_t number_of_logs_added = 0;
     while (1) {
+        static time_t last_uploaded = 0;
+        time_t now = time(NULL);
+        bool uploaded = false;
         ret = slf_process_log(
-            &upload_doc, timestamp_as_buffer, &number_of_logs_added, config
+            &upload_doc,
+            timestamp_as_buffer,
+            &number_of_logs_added,
+            config,
+            &uploaded
         );
         if (ret == GGL_ERR_EXPECTED) {
             continue;
@@ -89,6 +97,30 @@ static void *consumer_thread(void *arg) {
             GGL_LOGE("Failed to process log. Error GGL code: %d", ret);
             break;
         }
+
+        if (uploaded == false) {
+            if (last_uploaded == 0) {
+                last_uploaded = now;
+            }
+
+            if ((now - last_uploaded) >= config->maxUploadIntervalSec
+                && number_of_logs_added > 0) {
+                GGL_LOGI("Logs exist in memory and haven't been uploaded for "
+                         "the max upload interval. Uploading now.");
+                ret = upload_and_reset(
+                    &upload_doc, &number_of_logs_added, config
+                );
+                if (ret == GGL_ERR_OK) {
+                    last_uploaded = now;
+                } else {
+                    GGL_LOGE("Failed to process log. Error GGL code: %d", ret);
+                    break;
+                }
+            }
+        } else {
+            last_uploaded = now;
+        }
+
         (void) ggl_sleep(10);
     }
     return NULL;
