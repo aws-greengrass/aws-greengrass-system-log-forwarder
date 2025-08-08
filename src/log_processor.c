@@ -244,7 +244,6 @@ GglError slf_process_log(
                 }
             }
 
-            slf_log_store_remove();
             (*number_of_logs_added)++;
             return GGL_ERR_EXPECTED;
         }
