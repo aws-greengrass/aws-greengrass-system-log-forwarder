@@ -7,6 +7,8 @@ cmake_minimum_required(VERSION 3.22)
 project(aws-greengrass-system-log-forwarder C)
 
 option(ENABLE_WERROR "Compile warnings as errors")
+set(MAX_UPLOAD_SIZE
+    CACHE STRING "Maximum size in bytes for CloudWatch log upload payload")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -248,6 +250,11 @@ add_executable(system-log-forwarder ${SRCS})
 
 target_compile_definitions(system-log-forwarder
                            PRIVATE "GGL_MODULE=(\"system-log-forwarder\")")
+
+if(MAX_UPLOAD_SIZE)
+  target_compile_definitions(system-log-forwarder
+                             PRIVATE "MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE}")
+endif()
 
 target_include_directories(system-log-forwarder PRIVATE include)
 

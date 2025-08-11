@@ -15,7 +15,15 @@
 #define GGL_IPC_MAX_SVCUID_LEN (16)
 /// Maximum size in bytes for CloudWatch log upload payload
 /// Based on CloudWatch PutLogEvents API limits with 576 bytes buffer space
+#ifndef MAX_UPLOAD_SIZE
 #define MAX_UPLOAD_SIZE (1048000)
+#endif
+
+#include <assert.h>
+static_assert(
+    MAX_UPLOAD_SIZE <= 1048576,
+    "MAX_UPLOAD_SIZE cannot exceed 1MB (1048576 bytes)"
+);
 
 #include <ggl/buffer.h>
 
