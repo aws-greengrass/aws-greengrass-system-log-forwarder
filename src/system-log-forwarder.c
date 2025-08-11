@@ -61,14 +61,58 @@ static GglError escape_json_string_ggl(
     return GGL_ERR_OK;
 }
 
+static GglError drain_ring_buf_and_upload(
+    GglByteVec *upload_doc,
+    GglBuffer timestamp_buf,
+    uint16_t *logs_added,
+    Config *config
+) {
+    GglError ret = GGL_ERR_OK;
+    while (true) {
+        ret = slf_fetch_format_upload_log(
+            upload_doc, timestamp_buf, logs_added
+        );
+        if (ret == GGL_ERR_EXPECTED) {
+            GGL_LOGD(
+                "Ring buffer empty, drain complete with %u logs", *logs_added
+            );
+            ret = GGL_ERR_OK; // Ring buffer is empty, exit
+            break;
+        }
+        if (ret == GGL_ERR_NOMEM) {
+            GGL_LOGD("Upload buffer full, uploading %u logs", *logs_added);
+            // Buffer is full, upload and reset, then retry same log
+            ret = slf_upload_and_reset(upload_doc, logs_added, config);
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE(
+                    "Failed to upload logs to CloudWatch and reset buffer. "
+                    "Error code: %d",
+                    ret
+                );
+                break;
+            }
+            GGL_LOGD("Upload successful, continuing drain");
+            // Continue to retry processing the same log with reset buffer
+            continue;
+        }
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE("Error during drain: %d", ret);
+            break;
+        }
+    }
+
+    GGL_LOGD("Drain completed with result: %d", ret);
+    return ret;
+}
+
 static void *consumer_thread(void *arg) {
     Config *config = (Config *) arg;
     uint8_t upload_mem[MAX_UPLOAD_SIZE] = { 0 };
     GglByteVec upload_doc = GGL_BYTE_VEC(upload_mem);
-    (void) ggl_sleep(2);
-
     static uint8_t timestamp_mem[MAX_TIMESTAMP_DIGITS] = { 0 };
     GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
+    uint16_t number_of_logs_added = 0;
+    static time_t last_uploaded = 0;
 
     GglError ret = slf_upload_prefix_format(&upload_doc, config);
     if (ret != GGL_ERR_OK) {
@@ -78,56 +122,53 @@ static void *consumer_thread(void *arg) {
         );
     }
 
-    uint16_t number_of_logs_added = 0;
-    while (1) {
-        static time_t last_uploaded = 0;
+    while (true) {
         time_t now = time(NULL);
-        bool uploaded = false;
-        ret = slf_process_log(
-            &upload_doc,
-            timestamp_as_buffer,
-            &number_of_logs_added,
-            config,
-            &uploaded
-        );
-        if (ret == GGL_ERR_EXPECTED) {
-            continue;
-        }
-        if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to process log. Error GGL code: %d", ret);
-            break;
-        }
-
-        if (uploaded == false) {
-            if (last_uploaded == 0) {
-                last_uploaded = now;
-            }
-
-            if ((now - last_uploaded) >= config->maxUploadIntervalSec
-                && number_of_logs_added > 0) {
-                GGL_LOGI("Logs exist in memory and haven't been uploaded for "
-                         "the max upload interval. Uploading now.");
-                ret = upload_and_reset(
-                    &upload_doc, &number_of_logs_added, config
-                );
-                if (ret == GGL_ERR_OK) {
-                    last_uploaded = now;
-                } else {
-                    GGL_LOGE("Failed to process log. Error GGL code: %d", ret);
-                    break;
-                }
-            }
-        } else {
+        if (last_uploaded == 0) {
             last_uploaded = now;
         }
 
-        (void) ggl_sleep(10);
+        slf_log_store_wait_for_upload_trigger(
+            last_uploaded + config->maxUploadIntervalSec
+        );
+
+        ret = drain_ring_buf_and_upload(
+            &upload_doc, timestamp_as_buffer, &number_of_logs_added, config
+        );
+
+        // Upload any remaining logs after draining
+        if (ret == GGL_ERR_OK && number_of_logs_added > 0) {
+            ret = slf_upload_and_reset(
+                &upload_doc, &number_of_logs_added, config
+            );
+            if (ret == GGL_ERR_OK) {
+                last_uploaded = time(NULL);
+            }
+        }
+
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE(
+                "Failed to process ring buffer logs. Error GGL code: %d", ret
+            );
+            // Reset upload document to clean state
+            memset(upload_doc.buf.data, 0, upload_doc.buf.len);
+            upload_doc.buf.len = 0;
+            number_of_logs_added = 0;
+            ret = slf_upload_prefix_format(&upload_doc, config);
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE(
+                    "Failed to reinitialize upload prefix. Error GGL code: %d",
+                    ret
+                );
+            }
+            continue;
+        }
     }
     return NULL;
 }
 
 static GglError setup_journal(sd_journal **journal) {
-    char errbuf[256];
+    char errbuf[256] = { 0 };
     int ret = sd_journal_open(journal, SD_JOURNAL_ALL_NAMESPACES);
     if (ret < 0) {
         if (strerror_r(-ret, errbuf, sizeof(errbuf)) != 0) {
@@ -199,8 +240,7 @@ static void process_journal_entry(sd_journal *journal, char *buffer) {
     GglError ggl_ret = slf_log_store_add(log_buf, timestamp);
     if (ggl_ret == GGL_ERR_NOMEM) {
         // Ring buffer full - drop new log to preserve older messages
-        GGL_LOGW("Ring buffer full, dropping new log to preserve older messages"
-        );
+        (void) ggl_sleep(10);
         return;
     }
     if (ggl_ret != GGL_ERR_OK) {
@@ -208,15 +248,15 @@ static void process_journal_entry(sd_journal *journal, char *buffer) {
     }
 }
 
-static GglError producer_thread(Config config) {
+static GglError producer(Config config) {
     if (slf_initialize_ringbuf_state(config.bufferCapacity) != GGL_ERR_OK) {
         GGL_LOGE("Failed to initialize ring buffer. Exiting.");
         _Exit(1);
     }
 
-    char buffer[MAX_LOG_LINE_LENGTH];
-    char errbuf[256];
-    sd_journal *journal;
+    char buffer[MAX_LOG_LINE_LENGTH] = { 0 };
+    char errbuf[256] = { 0 };
+    sd_journal *journal = NULL;
 
     GglError setup_ret = setup_journal(&journal);
     if (setup_ret != GGL_ERR_OK) {
@@ -399,7 +439,7 @@ int main(int argc, char *argv[]) {
 
     pthread_create(&consumer_tid, NULL, consumer_thread, &config);
 
-    ret = producer_thread(config);
+    ret = producer(config);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Producer thread failed.");
     }
