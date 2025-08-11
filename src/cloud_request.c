@@ -26,7 +26,6 @@
 // HTTP request retry configuration
 #define HTTP_RETRY_BASE_DELAY_MS (1000) // 1 second base delay
 #define HTTP_RETRY_MAX_DELAY_MS (64000) // 64 second max delay
-#define HTTP_RETRY_MAX_ATTEMPTS (3) // max 3 attempts
 
 typedef struct {
     HttpEndpoint endpoint;
@@ -552,6 +551,7 @@ static GglError send_http_request(
     GglBuffer payload,
     SigV4Details sigv4_details,
     const char *target,
+    Config config,
     HTTPResponse_t *response_out
 ) {
     HttpRequestRetryCtx ctx = { .endpoint = endpoint,
@@ -564,7 +564,7 @@ static GglError send_http_request(
     GglError ret = slf_backoff(
         HTTP_RETRY_BASE_DELAY_MS,
         HTTP_RETRY_MAX_DELAY_MS,
-        HTTP_RETRY_MAX_ATTEMPTS,
+        (uint32_t) config.maxRetriesCount,
         http_request_retry_wrapper,
         &ctx
     );
@@ -604,6 +604,7 @@ static GglError slf_ensure_log_group_exists(
         payload,
         sigv4_details,
         "Logs_20140328.CreateLogGroup",
+        config,
         &response
     );
 
@@ -686,6 +687,7 @@ static GglError slf_ensure_log_stream_exists(
         payload,
         sigv4_details,
         "Logs_20140328.CreateLogStream",
+        config,
         &create_response
     );
 
@@ -798,6 +800,7 @@ GglError slf_upload_logs_to_cloud_watch(
         log_lines,
         sigv4_details,
         "Logs_20140328.PutLogEvents",
+        config,
         &response
     );
 
@@ -814,6 +817,7 @@ GglError slf_upload_logs_to_cloud_watch(
             log_lines,
             sigv4_details,
             "Logs_20140328.PutLogEvents",
+            config,
             NULL
         );
     }
