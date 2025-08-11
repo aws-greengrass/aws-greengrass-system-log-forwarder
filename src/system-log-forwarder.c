@@ -198,26 +198,13 @@ static void process_journal_entry(sd_journal *journal, char *buffer) {
 
     GglError ggl_ret = slf_log_store_add(log_buf, timestamp);
     if (ggl_ret == GGL_ERR_NOMEM) {
-        // Ring buffer full - remove entries until space is available
-        uint8_t retry_count = 0;
-
-        while (ggl_ret == GGL_ERR_NOMEM && retry_count < MAX_RING_BUFFER_RETRIES
-        ) {
-            slf_log_store_remove();
-            ggl_ret = slf_log_store_add(log_buf, timestamp);
-            retry_count++;
-        }
-
-        if (ggl_ret != GGL_ERR_OK) {
-            GGL_LOGE(
-                "Failed to add to ring buffer after %u retries", retry_count
-            );
-        }
+        // Ring buffer full - drop new log to preserve older messages
+        GGL_LOGW("Ring buffer full, dropping new log to preserve older messages"
+        );
         return;
     }
     if (ggl_ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to add to the ring buffer. Sleeping for 10 seconds");
-        (void) ggl_sleep(10);
+        GGL_LOGE("Failed to add to the ring buffer");
     }
 }
 
