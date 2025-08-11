@@ -10,6 +10,7 @@
 #include <ggl/buffer.h>
 #include <ggl/error.h>
 #include <ggl/log.h>
+#include <pthread.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -33,6 +34,9 @@ static char *backing_mem;
 static bool initialized = false;
 
 static size_t total_ring_buff_mem = (size_t) 1024 * 1024;
+static pthread_mutex_t upload_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t upload_cond = PTHREAD_COND_INITIALIZER;
+static bool upload_now = false;
 
 GglError slf_initialize_ringbuf_state(size_t ring_buffer_memory) {
     if (initialized) {
@@ -164,8 +168,13 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
         "Max log entry length must be less than UINT16_MAX."
     );
 
-    if (prev_free < total_ring_buff_mem / 2) {
-        // TODO: Trigger upload thread to flush
+    size_t threshold_mem = (total_ring_buff_mem * 60) / 100;
+    if (prev_free < threshold_mem) {
+        pthread_mutex_lock(&upload_mutex);
+        upload_now = true;
+        pthread_cond_signal(&upload_cond);
+        pthread_mutex_unlock(&upload_mutex);
+        GGL_LOGD("Ring buffer at 60%% capacity, upload triggered");
     }
 
     return GGL_ERR_OK;
@@ -190,4 +199,21 @@ void slf_log_store_remove(void) {
     size_t len = log_entry_len(entry->log_len);
     front = (front + len) % total_ring_buff_mem;
     atomic_fetch_add_explicit(&free_mem, len, memory_order_acq_rel);
+}
+
+void slf_log_store_wait_for_upload_trigger(time_t timeout_sec) {
+    struct timespec timeout = { .tv_sec = timeout_sec, .tv_nsec = 0 };
+
+    pthread_mutex_lock(&upload_mutex);
+    int wait_result = 0;
+    do {
+        wait_result
+            = pthread_cond_timedwait(&upload_cond, &upload_mutex, &timeout);
+        if (wait_result == ETIMEDOUT) {
+            GGL_LOGW("Timed out waiting for a upload.");
+            break;
+        }
+    } while (!upload_now);
+    upload_now = false;
+    pthread_mutex_unlock(&upload_mutex);
 }

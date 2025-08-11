@@ -12,6 +12,7 @@
 
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -51,5 +52,11 @@ bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
 /// @note slf_log_store_get must be called first, and there must be exactly one
 /// call to this function per call to slf_log_store_get
 void slf_log_store_remove(void);
+
+/// @brief Waits for an upload trigger (capacity or time-based).
+/// This function blocks until either the buffer reaches threshold capacity
+/// or the specified timeout is reached.
+/// @param[in] timeout_sec Pre-calculated timeout timestamp in seconds
+void slf_log_store_wait_for_upload_trigger(time_t timeout_sec);
 
 #endif
