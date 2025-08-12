@@ -69,9 +69,7 @@ static GglError drain_ring_buf_and_upload(
 ) {
     GglError ret = GGL_ERR_OK;
     while (true) {
-        ret = slf_fetch_format_upload_log(
-            upload_doc, timestamp_buf, logs_added
-        );
+        ret = slf_fetch_and_format_log(upload_doc, timestamp_buf, logs_added);
         if (ret == GGL_ERR_EXPECTED) {
             GGL_LOGD(
                 "Ring buffer empty, drain complete with %u logs", *logs_added

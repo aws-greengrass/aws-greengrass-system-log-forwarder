@@ -16,7 +16,6 @@
 #include <ggl/vector.h>
 #include <inttypes.h>
 #include <string.h>
-#include <stdbool.h>
 #include <stdio.h>
 
 static GglError get_timestamp_as_string(
@@ -119,7 +118,7 @@ static GglError null_terminate_credentials(
     return GGL_ERR_OK;
 }
 
-GglError upload_and_reset(
+GglError slf_upload_and_reset(
     GglByteVec *upload_doc, uint16_t *number_of_logs_added, const Config *config
 ) {
     GglError ret = GGL_ERR_OK;
@@ -174,81 +173,53 @@ GglError upload_and_reset(
     return ret;
 }
 
-GglError slf_process_log(
+GglError slf_fetch_and_format_log(
     GglByteVec *upload_doc,
     GglBuffer timestamp_as_buffer,
-    uint16_t *number_of_logs_added,
-    const Config *config,
-    bool *uploaded
+    uint16_t *number_of_logs_added
 ) {
-    assert(*uploaded == false);
-
     GglBuffer log = { .data = NULL, .len = 0 };
     uint64_t timestamp = 0U;
     GglError ret = GGL_ERR_OK;
 
-    if (slf_log_store_get(&log, &timestamp)) {
-        if (log.len > 0) {
-            slf_log_store_remove();
-            //  Remove the new line character from the logs
-            if ((log.data[log.len - 1]) == '\n') {
-                log.len--;
-            }
-            size_t json_message_overhead_size = calculate_json_message_overhead(
-                timestamp, timestamp_as_buffer
-            );
-            if (json_message_overhead_size == 0) {
-                GGL_LOGE("Failed to calculate json message overhead.");
-                return GGL_ERR_NOMEM;
-            }
-
-            if (upload_doc->capacity
-                > (upload_doc->buf.len
-                   + (log.len + json_message_overhead_size + strlen("]}")))) {
-                ret = format_log_events(
-                    upload_doc, log, timestamp, *number_of_logs_added
-                );
-                if (ret != GGL_ERR_OK) {
-                    GGL_LOGE(
-                        "Failed to create the upload document, Error: %d", ret
-                    );
-                    return ret;
-                }
-            } else {
-                ret = upload_and_reset(
-                    upload_doc, number_of_logs_added, config
-                );
-                if (ret != GGL_ERR_OK) {
-                    GGL_LOGE(
-                        "Failed to upload logs to Cloudwatch and reset memory. "
-                        "Error GGL code: "
-                        "%d",
-                        ret
-                    );
-                    return ret;
-                }
-
-                *uploaded = true;
-
-                // Now process the current log entry with the reset buffer
-                ret = format_log_events(
-                    upload_doc, log, timestamp, *number_of_logs_added
-                );
-                if (ret != GGL_ERR_OK) {
-                    GGL_LOGE(
-                        "Failed to create the upload document after reset, "
-                        "Error: %d",
-                        ret
-                    );
-                    return ret;
-                }
-            }
-
-            (*number_of_logs_added)++;
-            return GGL_ERR_EXPECTED;
-        }
-        // Got Empty Log
+    if (!slf_log_store_peek(&log, &timestamp)) {
+        GGL_LOGD("Ring buffer is empty, no more logs to process.");
+        return GGL_ERR_EXPECTED;
     }
-    // Empty ring buffer
+
+    if (log.len == 0) {
+        slf_log_store_remove();
+        return GGL_ERR_OK;
+    }
+
+    // Remove the new line character from the logs
+    if ((log.data[log.len - 1]) == '\n') {
+        log.len--;
+    }
+
+    size_t json_message_overhead_size
+        = calculate_json_message_overhead(timestamp, timestamp_as_buffer);
+    if (json_message_overhead_size == 0) {
+        GGL_LOGE("Failed to calculate json message overhead.");
+        return GGL_ERR_NOMEM;
+    }
+
+    // Check if buffer would overflow with this log
+    if (upload_doc->capacity
+        <= (upload_doc->buf.len
+            + (log.len + json_message_overhead_size + strlen("]}")))) {
+        return GGL_ERR_NOMEM; // Signal buffer full
+    }
+
+    ret = format_log_events(upload_doc, log, timestamp, *number_of_logs_added);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to create the upload document, Error: %d", ret);
+        return ret;
+    }
+
+    // Only remove from ring buffer after successful upload buffer addition
+    slf_log_store_remove();
+    (*number_of_logs_added)++;
+
     return GGL_ERR_OK;
 }

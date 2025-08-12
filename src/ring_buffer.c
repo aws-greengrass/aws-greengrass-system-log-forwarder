@@ -147,6 +147,12 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
 
     size_t required_len = log_entry_len(truncated.len);
     if (required_len > atomic_load_explicit(&free_mem, memory_order_acquire)) {
+        pthread_mutex_lock(&upload_mutex);
+        upload_now = true;
+        pthread_cond_signal(&upload_cond);
+        pthread_mutex_unlock(&upload_mutex);
+        GGL_LOGD("Ring buffer at 100%% capacity, upload triggered");
+
         GGL_LOGW("Dropping log; insufficient space in ring buffer.");
         return GGL_ERR_NOMEM;
     }
@@ -180,7 +186,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp) {
     return GGL_ERR_OK;
 }
 
-bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp) {
+bool slf_log_store_peek(GglBuffer *log, uint64_t *timestamp) {
     if (atomic_load_explicit(&free_mem, memory_order_acquire)
         == total_ring_buff_mem) {
         return false;
