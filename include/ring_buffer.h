@@ -43,7 +43,7 @@ GglError slf_log_store_add(GglBuffer log, uint64_t timestamp);
 /// @return true if a log entry was retrieved, false if the queue is empty
 /// @note If this function returns true, slf_log_store_remove must be called
 /// afterward
-bool slf_log_store_get(GglBuffer *log, uint64_t *timestamp);
+bool slf_log_store_peek(GglBuffer *log, uint64_t *timestamp);
 
 /// @brief Removes the first log entry from the ring buffer for the consumer
 /// thread. This function must be called after slf_log_store_get to complete the
