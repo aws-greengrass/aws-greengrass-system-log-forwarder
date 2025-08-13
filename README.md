@@ -5,9 +5,6 @@ A generic component which uploads system logs to CloudWatch.
 This works by uploading active system logs directly to CloudWatch using
 CloudWatch's HTTPS API.
 
-The current version isn't meant to work with prolonged offline devices and
-requires active internet connection.
-
 ### Build
 
 To build the project, you will need the following build dependencies:
@@ -91,30 +88,62 @@ well as permission to perform the putLogs HTTP call. You need to provide the
 following additional policy to your Greengrass device's role alias at minimum
 for the component to work.
 
-```
+#### Development/Testing Policy (Permissive)
+
+```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:DescribeLogGroups",
-                "logs:DescribeLogStreams",
-                "logs:PutLogEvents"
-            ],
-            "Resource": "*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
-NOTE: In the above example, the Resource is still overly permissive and users
-may want to limit this accordingly.
+#### Least Privilege Policy
 
-For running independent of Greengrass, user would still need an access key with
-at least the minimum required permissions.
+For production deployments, use this least privilege policy that restricts
+access to the specific log group:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup"],
+      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogStream", "logs:DescribeLogStreams"],
+      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:log-stream:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:log-stream:*"
+    }
+  ]
+}
+```
+
+Replace `<REGION>` with your AWS region (e.g., `us-east-1`), `<ACCOUNT-ID>` with
+your AWS account ID, and `greengrass/systemLogs` with your custom log group name
+if using a different configuration. The log stream name defaults to the
+Greengrass device/thing name.
+
+For running independent of Greengrass, users need an access key with the
+appropriate permissions from either policy above.
 
 ### Local Deploy
 
