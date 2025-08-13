@@ -15,7 +15,6 @@ ComponentDependencies:
 ComponentConfiguration:
   DefaultConfiguration:
     maxUploadIntervalSec: 300
-    maxRetriesCount: 3
     bufferCapacity: 1048576
     logGroup: "greengrass/systemLogs"
     logStream: ""
@@ -24,8 +23,9 @@ Manifests:
       os: linux
       runtime: "*"
     Lifecycle:
-      run: |
-        {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
-          --maxRetriesCount {configuration:/maxRetriesCount} --bufferCapacity {configuration:/bufferCapacity} \
-          --logGroup {configuration:/logGroup} --logStream {configuration:/logStream} \
-          --thingName {iot:thingName}
+      run:
+        RequiresPrivilege: true
+        Script: |
+          {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
+            --bufferCapacity {configuration:/bufferCapacity} --logGroup {configuration:/logGroup} \
+            --logStream {configuration:/logStream} --thingName {iot:thingName}
