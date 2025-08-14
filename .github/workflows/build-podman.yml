@@ -1,0 +1,60 @@
+name: Build ARM64 with Podman
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Cross-compile to ARM64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Set version
+        id: version
+        run: echo "VERSION=$(cat version)" >> $GITHUB_OUTPUT
+
+      - name: Build ARM64 in container
+        run: |
+          podman run --rm -v $PWD:/workspace --platform linux/arm64 \
+            ubuntu:24.04 bash -c "
+            cd /workspace && \
+            apt-get update && \
+            apt-get install -y build-essential cmake pkg-config git libssl-dev libsystemd-dev && \
+            cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DGGL_LOG_LEVEL=INFO && \
+            make -C build -j\$(nproc) && \
+            strip build/bin/system-log-forwarder
+            "
+
+      - name: Create package
+        run: |
+          mkdir -p ${{ github.workspace }}/zipfile
+          zip -9 ${{ github.workspace }}/zipfile/system-log-forwarder-arm64-${{ steps.version.outputs.VERSION }}.zip -j build/bin/system-log-forwarder
+
+      - name: md5sums
+        run: |
+          md5sum ${{ github.workspace }}/zipfile/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-log-forwarder-arm64-${{ steps.version.outputs.VERSION }}
+          path: |
+            ${{ github.workspace }}/zipfile/*
+          retention-days: 1
