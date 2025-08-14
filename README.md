@@ -19,7 +19,7 @@ To build the project, you will need the following build dependencies:
 On Ubuntu, these can be installed with:
 
 ```sh
-sudo apt update && sudo apt install build-essential pkg-config cmake git libssl-dev
+sudo apt update && sudo apt install build-essential pkg-config cmake git libssl-dev libsystemd-dev
 ```
 
 To make a release build configured for minimal size, run:
