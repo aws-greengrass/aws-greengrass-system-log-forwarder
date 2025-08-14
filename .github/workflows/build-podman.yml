@@ -42,10 +42,10 @@ jobs:
             strip build/bin/system-log-forwarder
             "
 
-      - name: Create package
+      - name: Save package
         run: |
-          mkdir -p ${{ github.workspace }}/zipfile
-          zip -9 ${{ github.workspace }}/zipfile/system-log-forwarder-arm64-${{ steps.version.outputs.VERSION }}.zip -j build/bin/system-log-forwarder
+          mkdir -p ${{ github.workspace }}/zipfile/
+          cp build/bin/system-log-forwarder ${{ github.workspace }}/zipfile/
 
       - name: md5sums
         run: |

@@ -17,8 +17,8 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
+          # - arch: arm64
+          #   runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -42,10 +42,10 @@ jobs:
       - name: Strip binary
         run: strip build/bin/system-log-forwarder
 
-      - name: Create package
+      - name: Save package
         run: |
-          mkdir -p ${{ github.workspace }}/zipfile
-          zip -9 ${{ github.workspace }}/zipfile/system-log-forwarder-${{ matrix.arch }}-${{ steps.version.outputs.VERSION }}.zip -j build/bin/system-log-forwarder
+          mkdir -p ${{ github.workspace }}/zipfile/
+          cp build/bin/system-log-forwarder ${{ github.workspace }}/zipfile/
 
       - name: md5sums
         run: |
