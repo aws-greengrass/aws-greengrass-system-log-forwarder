@@ -551,7 +551,6 @@ static GglError send_http_request(
     GglBuffer payload,
     SigV4Details sigv4_details,
     const char *target,
-    Config config,
     HTTPResponse_t *response_out
 ) {
     HttpRequestRetryCtx ctx = { .endpoint = endpoint,
@@ -561,17 +560,12 @@ static GglError send_http_request(
                                 .response_out = response_out,
                                 .err = GGL_ERR_OK };
 
-    GglError ret = slf_backoff(
+    slf_backoff_indefinite(
         HTTP_RETRY_BASE_DELAY_MS,
         HTTP_RETRY_MAX_DELAY_MS,
-        (uint32_t) config.maxRetriesCount,
         http_request_retry_wrapper,
         &ctx
     );
-
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
 
     return ctx.err;
 }
@@ -604,7 +598,6 @@ static GglError slf_ensure_log_group_exists(
         payload,
         sigv4_details,
         "Logs_20140328.CreateLogGroup",
-        config,
         &response
     );
 
@@ -687,7 +680,6 @@ static GglError slf_ensure_log_stream_exists(
         payload,
         sigv4_details,
         "Logs_20140328.CreateLogStream",
-        config,
         &create_response
     );
 
@@ -800,7 +792,6 @@ GglError slf_upload_logs_to_cloud_watch(
         log_lines,
         sigv4_details,
         "Logs_20140328.PutLogEvents",
-        config,
         &response
     );
 
@@ -817,7 +808,6 @@ GglError slf_upload_logs_to_cloud_watch(
             log_lines,
             sigv4_details,
             "Logs_20140328.PutLogEvents",
-            config,
             NULL
         );
     }
