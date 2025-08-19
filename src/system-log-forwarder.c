@@ -7,10 +7,14 @@
 #include "log_processor.h"
 #include "ring_buffer.h"
 #include <argp.h>
+#include <ggl/arena.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <ggl/io.h>
+#include <ggl/json_decode.h>
 #include <ggl/json_encode.h>
 #include <ggl/log.h>
+#include <ggl/map.h>
 #include <ggl/object.h>
 #include <ggl/sdk.h>
 #include <ggl/utils.h>
@@ -30,6 +34,11 @@
 #define MAX_TIMESTAMP_DIGITS (26) // Max digits for int64_t + null terminator
 #define MAX_RING_BUFFER_RETRIES (3) // Max retries for ring buffer operations
 
+typedef struct {
+    Config *config;
+    GglArena *config_arena;
+} ArgData;
+
 static GglError escape_json_string_ggl(
     char *dest,
     size_t dest_size,
@@ -41,20 +50,23 @@ static GglError escape_json_string_ggl(
     GglObject str_obj = ggl_obj_buf(src_buf);
 
     GglBuffer dest_buf = { .data = (uint8_t *) dest, .len = dest_size };
-    GglError ret = ggl_json_encode(str_obj, &dest_buf);
+    GglByteVec dest_vec = ggl_byte_vec_init(dest_buf);
+    GglWriter writer = ggl_byte_vec_writer(&dest_vec);
+    GglError ret = ggl_json_encode(str_obj, writer);
     if (ret != GGL_ERR_OK) {
         return ret;
     }
 
     // ggl_json_encode includes quotes, but we need the content without quotes
     // since we add quotes in the JSON structure manually
-    if (dest_buf.len >= 2 && dest[0] == '"' && dest[dest_buf.len - 1] == '"') {
+    if (dest_vec.buf.len >= 2 && dest[0] == '"'
+        && dest[dest_vec.buf.len - 1] == '"') {
         // Remove surrounding quotes and shift content
-        memmove(dest, dest + 1, dest_buf.len - 2);
-        *escaped_len = dest_buf.len - 2;
+        memmove(dest, dest + 1, dest_vec.buf.len - 2);
+        *escaped_len = dest_vec.buf.len - 2;
         dest[*escaped_len] = '\0';
     } else {
-        *escaped_len = dest_buf.len;
+        *escaped_len = dest_vec.buf.len;
         dest[*escaped_len] = '\0';
     }
 
@@ -165,6 +177,48 @@ static void *consumer_thread(void *arg) {
     return NULL;
 }
 
+static bool matches_service_filters(
+    const char *service_name, GglList service_filters
+) {
+    if (service_filters.len == 0) {
+        return true;
+    }
+
+    if (service_name == NULL) {
+        return false;
+    }
+
+    for (size_t filter_idx = 0; filter_idx < service_filters.len;
+         filter_idx++) {
+        if (ggl_obj_type(service_filters.items[filter_idx]) != GGL_TYPE_BUF) {
+            GGL_LOGW("Service filter is not a buffer, skipping");
+            continue;
+        }
+
+        GglBuffer filter = ggl_obj_into_buf(service_filters.items[filter_idx]);
+
+        if (ggl_buffer_eq(filter, GGL_STR("*"))) {
+            return true;
+        }
+
+        if (filter.len > 1 && filter.data[filter.len - 1] == '*') {
+            if (strlen(service_name) >= filter.len - 1
+                && strncmp(service_name, (char *) filter.data, filter.len - 1)
+                    == 0) {
+                return true;
+            }
+            continue;
+        }
+
+        if (strlen(service_name) >= filter.len
+            && strncmp(service_name, (char *) filter.data, filter.len) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static GglError setup_journal(sd_journal **journal) {
     char errbuf[256] = { 0 };
     int ret = sd_journal_open(journal, SD_JOURNAL_ALL_NAMESPACES);
@@ -189,13 +243,25 @@ static GglError setup_journal(sd_journal **journal) {
     return GGL_ERR_OK;
 }
 
-static void process_journal_entry(sd_journal *journal, char *buffer) {
+static void process_journal_entry(
+    sd_journal *journal, char *buffer, GglList service_filters
+) {
     const void *data = NULL;
     size_t length = 0;
     uint64_t timestamp = 0;
     char errbuf[256] = { 0 };
 
-    int ret = sd_journal_get_realtime_usec(journal, &timestamp);
+    int ret = sd_journal_get_data(journal, "_SYSTEMD_UNIT", &data, &length);
+    const size_t PREFIX_LEN = strlen("_SYSTEMD_UNIT=");
+    if (ret >= 0 && length > PREFIX_LEN) {
+        const char *unit_name = &((const char *) data)[PREFIX_LEN];
+        if (!matches_service_filters(unit_name, service_filters)) {
+            GGL_LOGT("Skipping log entry that does not match filters.");
+            return;
+        }
+    }
+
+    ret = sd_journal_get_realtime_usec(journal, &timestamp);
     if (ret < 0) {
         if (strerror_r(-ret, errbuf, sizeof(errbuf)) != 0) {
             snprintf(errbuf, sizeof(errbuf), "Error %d", -ret);
@@ -272,7 +338,7 @@ static GglError producer(Config config) {
         }
 
         while (sd_journal_next(journal) > 0) {
-            process_journal_entry(journal, buffer);
+            process_journal_entry(journal, buffer, config.serviceFilters);
         }
     }
 
@@ -315,10 +381,17 @@ static struct argp_option opts[]
         { "logStream", 's', "name", 0, "Log stream name", 0 },
         { "thingName", 't', "name", 0, "Device/Thing name", 0 },
         { "port", 'p', "integer", 0, "Port number", 0 },
+        { "filters",
+          'f',
+          "json_obj",
+          0,
+          "JSON object of filters containing a list under the services key",
+          0 },
         { 0 } };
 
 static error_t arg_parser(int key, char *arg, struct argp_state *state) {
-    Config *config = state->input;
+    ArgData *arg_data = (ArgData *) state->input;
+    Config *config = arg_data->config;
     switch (key) {
     case 'i': {
         error_t result = safe_str_to_int(arg, &config->maxUploadIntervalSec);
@@ -365,6 +438,34 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         config->port = ggl_buffer_from_null_term(arg);
         break;
     }
+    case 'f': {
+        GglBuffer json_buf = ggl_buffer_from_null_term(arg);
+        GglObject json_obj;
+
+        GglError ret = ggl_json_decode_destructive(
+            json_buf, arg_data->config_arena, &json_obj
+        );
+        if (ret != GGL_ERR_OK || ggl_obj_type(json_obj) != GGL_TYPE_MAP) {
+            GGL_LOGE("Error: filters must be a JSON object. Error while "
+                     "parsing.");
+            // NOLINTNEXTLINE(concurrency-mt-unsafe)
+            argp_usage(state);
+        }
+
+        GglObject *services_obj;
+        bool found = ggl_map_get(
+            ggl_obj_into_map(json_obj), GGL_STR("services"), &services_obj
+        );
+        if (!found || ggl_obj_type(*services_obj) != GGL_TYPE_LIST) {
+            GGL_LOGE("Error: filters must contain a 'services' key with a list "
+                     "value. Error while parsing.");
+            // NOLINTNEXTLINE(concurrency-mt-unsafe)
+            argp_usage(state);
+        }
+
+        config->serviceFilters = ggl_obj_into_list(*services_obj);
+        break;
+    }
     case ARGP_KEY_END:
         if (config->logGroup.len == 0 || config->thingName.len == 0) {
             GGL_LOGE("Error: logGroup and thingName are required");
@@ -404,11 +505,16 @@ int main(int argc, char *argv[]) {
                       .maxUploadIntervalSec = 300,
                       .logGroup = { 0 },
                       .logStream = { 0 },
-                      .port = GGL_STR("443") };
+                      .port = GGL_STR("443"),
+                      .serviceFilters = { 0 } };
     ggl_sdk_init();
 
+    uint8_t config_arena_mem[1024];
+    GglArena config_arena = ggl_arena_init(GGL_BUF(config_arena_mem));
+    ArgData arg_data = { .config = &config, .config_arena = &config_arena };
+
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
-    argp_parse(&argp, argc, argv, 0, 0, &config);
+    argp_parse(&argp, argc, argv, 0, 0, &arg_data);
 
     GglError ret = validate_slf_config(&config);
     if (ret != GGL_ERR_OK) {
