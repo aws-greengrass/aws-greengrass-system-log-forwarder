@@ -17,7 +17,8 @@ ComponentConfiguration:
     maxUploadIntervalSec: 300
     bufferCapacity: 1048576
     logGroup: "greengrass/systemLogs"
-    logStream: ""
+    filters:
+      services: ["ggl.*"]
 Manifests:
   - Platform:
       os: linux
@@ -28,4 +29,5 @@ Manifests:
         Script: |
           {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
             --bufferCapacity {configuration:/bufferCapacity} --logGroup {configuration:/logGroup} \
-            --logStream {configuration:/logStream} --thingName {iot:thingName}
+            --thingName {iot:thingName} \
+            --filters {configuration:/filters}
