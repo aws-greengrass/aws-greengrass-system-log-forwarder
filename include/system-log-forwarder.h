@@ -26,6 +26,7 @@ static_assert(
 );
 
 #include <ggl/buffer.h>
+#include <ggl/object.h>
 
 /// @brief AWS Service information and temporary credentials for SigV4
 /// authentication. This structure contains all the necessary AWS credentials
@@ -65,6 +66,8 @@ typedef struct {
     GglBuffer thingName;
     /// Port number for CloudWatch API connections (typically "443")
     GglBuffer port;
+    /// List of systemd service filters to apply
+    GglList serviceFilters;
 } Config;
 
 #endif
