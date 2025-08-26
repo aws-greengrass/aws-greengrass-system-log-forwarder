@@ -8,6 +8,7 @@ cflags
 Chnage
 clangd
 coreutils
+coverity
 DENABLE
 DFETCHCONTENT
 dont

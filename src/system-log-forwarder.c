@@ -117,7 +117,7 @@ static GglError drain_ring_buf_and_upload(
 
 static void *consumer_thread(void *arg) {
     Config *config = (Config *) arg;
-    uint8_t upload_mem[MAX_UPLOAD_SIZE] = { 0 };
+    static uint8_t upload_mem[MAX_UPLOAD_SIZE] = { 0 };
     GglByteVec upload_doc = GGL_BYTE_VEC(upload_mem);
     static uint8_t timestamp_mem[MAX_TIMESTAMP_DIGITS] = { 0 };
     GglBuffer timestamp_as_buffer = GGL_BUF(timestamp_mem);
@@ -132,6 +132,7 @@ static void *consumer_thread(void *arg) {
         );
     }
 
+    // coverity[infinite_loop]
     while (true) {
         time_t now = time(NULL);
         if (last_uploaded == 0) {
@@ -171,7 +172,6 @@ static void *consumer_thread(void *arg) {
                     ret
                 );
             }
-            continue;
         }
     }
     return NULL;
@@ -361,9 +361,11 @@ static error_t safe_str_to_int(const char *str, int *result) {
 
 static error_t safe_str_to_size_t(const char *str, size_t *result) {
     unsigned long temp_val = strtoul(str, NULL, 10);
+#if ULONG_MAX > SIZE_MAX
     if (temp_val > SIZE_MAX) {
         return ARGP_ERR_UNKNOWN;
     }
+#endif
     *result = (size_t) temp_val;
     return 0;
 }
