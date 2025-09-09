@@ -5,8 +5,9 @@
 ---
 RecipeFormatVersion: "2020-01-25"
 ComponentName: "aws.greengrass.SystemLogForwarder"
-ComponentVersion: "0.1.0"
-ComponentDescription: AWS Greengrass System Log Forwarder
+ComponentVersion: "2.0.0"
+ComponentDescription:
+  A generic component which uploads system logs to CloudWatch.
 ComponentPublisher: AWS
 ComponentDependencies:
   aws.greengrass.TokenExchangeService:
@@ -15,7 +16,7 @@ ComponentDependencies:
 ComponentConfiguration:
   DefaultConfiguration:
     maxUploadIntervalSec: 300
-    bufferCapacity: 1048576
+    bufferCapacity: 1048000
     logGroup: "greengrass/systemLogs"
     logStream: ""
     filters:
@@ -24,6 +25,11 @@ Manifests:
   - Platform:
       os: linux
       runtime: "*"
+    Artifacts:
+      - URI: s3://bucket/path/to/system-log-forwarder
+        Permission:
+          Read: "OWNER"
+          Execute: "OWNER"
     Lifecycle:
       run:
         RequiresPrivilege: true
