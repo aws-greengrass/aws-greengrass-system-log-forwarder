@@ -24,7 +24,7 @@ ComponentConfiguration:
 Manifests:
   - Platform:
       os: linux
-      runtime: "*"
+      runtime: aws_nucleus_lite
     Artifacts:
       - URI: s3://bucket/path/to/system-log-forwarder
         Permission:
