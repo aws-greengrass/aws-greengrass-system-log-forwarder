@@ -16,7 +16,7 @@ ComponentDependencies:
 ComponentConfiguration:
   DefaultConfiguration:
     maxUploadIntervalSec: 300
-    bufferCapacity: 1048000
+    bufferCapacity: 1048576 # Must be a multiple of the system page size (typically 4KB)
     logGroup: "greengrass/systemLogs"
     logStream: ""
     filters:
