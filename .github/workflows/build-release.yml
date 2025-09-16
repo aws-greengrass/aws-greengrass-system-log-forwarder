@@ -15,10 +15,9 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-latest
-          # TODO: Uncomment after repo is public
-          # - arch: arm64
-          #   runner: ubuntu-24.04-arm
+            runner: ubuntu-24.04-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout code
@@ -55,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name:
-            system-log-forwarder-${{ matrix.arch }}-${{
+            system-log-forwarder-${{ matrix.arch }}-ubuntu24.04-${{
             steps.version.outputs.VERSION }}
           path: |
             ${{ github.workspace }}/zipfile/*
