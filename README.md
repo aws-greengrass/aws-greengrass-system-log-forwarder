@@ -37,6 +37,9 @@ The following configuration flags may be set with cmake (with `-D`):
 - `GGL_LOG_LEVEL`: This can be set to `NONE`, `ERROR`, `WARN`, `INFO`, `DEBUG`,
   or `TRACE` for various logging levels.
 
+- `MAX_UPLOAD_SIZE`: This can be set to specify the maximum size in bytes for
+  log uploads to CloudWatch (e.g., `-D MAX_UPLOAD_SIZE=1048576` for 1MB).
+
 To build, then run `make`:
 
 ```sh
