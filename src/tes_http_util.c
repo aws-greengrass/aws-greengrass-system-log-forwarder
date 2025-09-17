@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <stdint.h>
 
+#define MAX_HTTP_RESPONSE_KVS 7
 #define DEFAULT_HTTP_PORT "80"
 // Maximum path bound by uri length, subtracting 7 for http://, and adding 1 for
 // null terminator and 1 for starting slash
@@ -183,12 +184,16 @@ static int create_connection(const HttpEndpoint *endpoint) {
 }
 
 static GglError parse_credentials_from_response(
-    SigV4Details *credentials, GglBuffer response_body, GglArena *alloc
+    SigV4Details *credentials, GglBuffer response_body
 ) {
     GGL_LOGT("Parsing credentials from response body");
+    static uint8_t
+        http_response_decode_mem[MAX_HTTP_RESPONSE_KVS * sizeof(GglKV)];
+    GglArena local_alloc = ggl_arena_init(GGL_BUF(http_response_decode_mem));
 
     GglObject body_obj;
-    GglError ret = ggl_json_decode_destructive(response_body, alloc, &body_obj);
+    GglError ret
+        = ggl_json_decode_destructive(response_body, &local_alloc, &body_obj);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to parse HTTP response body.");
         return ret;
@@ -347,7 +352,7 @@ static GglError make_cred_call(
         GglBuffer response_body
             = { .data = arena_body, .len = response.bodyLen };
         GglError ret = parse_credentials_from_response(
-            response_credentials, response_body, alloc
+            response_credentials, response_body
         );
         if (ret != GGL_ERR_OK) {
             GGL_LOGE("Failed to parse credentials from response body.");
