@@ -103,8 +103,6 @@ for the component to work.
       "Action": [
         "logs:CreateLogGroup",
         "logs:CreateLogStream",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams",
         "logs:PutLogEvents"
       ],
       "Resource": "*"
@@ -125,17 +123,12 @@ access to the specific log group:
     {
       "Effect": "Allow",
       "Action": ["logs:CreateLogGroup"],
-      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs"
+      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:*"
     },
     {
       "Effect": "Allow",
-      "Action": ["logs:CreateLogStream", "logs:DescribeLogStreams"],
-      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:log-stream:*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["logs:PutLogEvents"],
-      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:log-stream:*"
+      "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:<REGION>:<ACCOUNT-ID>:log-group:greengrass/systemLogs:log-stream:${credentials-iot:ThingName}"
     }
   ]
 }
@@ -145,6 +138,11 @@ Replace `<REGION>` with your AWS region (e.g., `us-east-1`), `<ACCOUNT-ID>` with
 your AWS account ID, and `greengrass/systemLogs` with your custom log group name
 if using a different configuration. The log stream name defaults to the
 Greengrass device/thing name.
+
+The policy takes advantage of the `${credentials-iot:ThingName}` IAM policy
+variable that the
+[AWS IoT Core credentials provider](https://docs.aws.amazon.com/iot/latest/developerguide/authorizing-direct-aws.html)
+makes available via the token exchange role.
 
 For running independent of Greengrass, users need an access key with the
 appropriate permissions from either policy above.
