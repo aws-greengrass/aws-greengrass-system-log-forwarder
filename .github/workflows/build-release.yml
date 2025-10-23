@@ -16,30 +16,42 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-24.04
+            container: ubuntu:22.04
+            platform: linux/amd64
           - arch: arm64
             runner: ubuntu-24.04-arm
+            container: arm64v8/ubuntu:22.04
+            platform: linux/arm64
+          - arch: armv7
+            runner: ubuntu-24.04
+            container: arm32v7/ubuntu:22.04
+            platform: linux/arm/v7
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config git libssl-dev libsystemd-dev
+      - name: Set up QEMU for cross-platform builds
+        if: matrix.arch == 'armv7'
+        uses: docker/setup-qemu-action@v3
 
       - name: Set version
         id: version
         run: echo "VERSION=$(cat version)" >> $GITHUB_OUTPUT
 
-      - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DGGL_LOG_LEVEL=INFO
-
-      - name: Build
-        run: make -C build -j$(nproc)
-
-      - name: Strip binary
-        run: strip build/bin/system-log-forwarder
+      - name: Build in container
+        run: |
+          docker run --rm --platform=${{ matrix.platform }} \
+            -v $PWD:/workspace \
+            -w /workspace \
+            ${{ matrix.container }} \
+            bash -c "
+              apt-get update && \
+              apt-get install -y build-essential cmake pkg-config git libssl-dev libsystemd-dev && \
+              cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DGGL_LOG_LEVEL=INFO && \
+              make -C build -j\$(nproc) && \
+              strip build/bin/system-log-forwarder
+            "
 
       - name: Save package
         run: |
@@ -54,7 +66,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name:
-            system-log-forwarder-${{ matrix.arch }}-ubuntu24.04-${{
+            system-log-forwarder-${{ matrix.arch }}-deb-${{
             steps.version.outputs.VERSION }}
           path: |
             ${{ github.workspace }}/zipfile/*
