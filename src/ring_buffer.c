@@ -216,7 +216,7 @@ void slf_log_store_wait_for_upload_trigger(time_t timeout_sec) {
         wait_result
             = pthread_cond_timedwait(&upload_cond, &upload_mutex, &timeout);
         if (wait_result == ETIMEDOUT) {
-            GGL_LOGW("Timed out waiting for a upload.");
+            GGL_LOGI("Timed out waiting for a upload.");
             break;
         }
     }
