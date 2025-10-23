@@ -152,10 +152,9 @@ static void *consumer_thread(void *arg) {
             ret = slf_upload_and_reset(
                 &upload_doc, &number_of_logs_added, config
             );
-            if (ret == GGL_ERR_OK) {
-                last_uploaded = time(NULL);
-            }
         }
+
+        last_uploaded = now;
 
         if (ret != GGL_ERR_OK) {
             GGL_LOGE(
