@@ -22,6 +22,21 @@ ComponentConfiguration:
     filters:
       services: ["ggl.*"]
 Manifests:
+  - Platform: # GGv2 (Java) manifest
+      os: linux
+    Artifacts:
+      - URI: s3://bucket/path/to/system-log-forwarder
+        Permission:
+          Read: "OWNER"
+          Execute: "OWNER"
+    Lifecycle:
+      run:
+        RequiresPrivilege: true
+        Script: |
+          {artifacts:path}/system-log-forwarder --maxUploadIntervalSec {configuration:/maxUploadIntervalSec} \
+            --bufferCapacity {configuration:/bufferCapacity} --logGroup {configuration:/logGroup} \
+            --logStream "{configuration:/logStream}" --thingName {iot:thingName} \
+            --filters '{configuration:/filters}'
   - Platform:
       os: linux
       runtime: aws_nucleus_lite
