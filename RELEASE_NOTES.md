@@ -1,8 +1,8 @@
-# Release Notes v2.0.2
+# Release Notes v2.1.0
 
 ## New with this release
 
-- Updates the component recipe to properly support Greengrass v2 (Java)
+- Updates the component recipe to properly support Greengrass Nucleus
 - Improved logging output when there are no logs to upload
 - Minor bug fixes
 
