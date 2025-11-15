@@ -570,39 +570,22 @@ static GglError send_http_request(
     return ctx.err;
 }
 
-// Ensure log group exists by attempting to create it
-static GglError slf_ensure_log_group_exists(
-    SigV4Details sigv4_details, HttpEndpoint endpoint, Config config
+typedef struct {
+    GglBuffer payload;
+    const char *target;
+    const char *resource_type;
+    GglBuffer resource_name;
+} EnsureResourceCtx;
+
+static GglError slf_ensure_resource_exists(
+    SigV4Details sigv4_details, HttpEndpoint endpoint, EnsureResourceCtx *ctx
 ) {
-    GGL_LOGT(
-        "Ensuring log group exists: %.*s",
-        (int) config.logGroup.len,
-        config.logGroup.data
-    );
-
-    char payload_buffer[256];
-    snprintf(
-        payload_buffer,
-        sizeof(payload_buffer),
-        "{\"logGroupName\":\"%.*s\"}",
-        (int) config.logGroup.len,
-        config.logGroup.data
-    );
-
-    GglBuffer payload
-        = { .data = (uint8_t *) payload_buffer, .len = strlen(payload_buffer) };
-
     HTTPResponse_t response = { 0 };
     GglError ret = send_http_request(
-        endpoint,
-        payload,
-        sigv4_details,
-        "Logs_20140328.CreateLogGroup",
-        &response
+        endpoint, ctx->payload, sigv4_details, ctx->target, &response
     );
 
     if (ret != GGL_ERR_OK) {
-        // Check if it's just because the log group already exists
         if (response.pBody && response.bodyLen > 0) {
             GglBuffer response_buf = { .data = (uint8_t *) response.pBody,
                                        .len = response.bodyLen };
@@ -612,18 +595,20 @@ static GglError slf_ensure_log_group_exists(
                     NULL
                 )) {
                 GGL_LOGD(
-                    "Log group '%.*s' already exists",
-                    (int) config.logGroup.len,
-                    config.logGroup.data
+                    "%s '%.*s' already exists",
+                    ctx->resource_type,
+                    (int) ctx->resource_name.len,
+                    ctx->resource_name.data
                 );
                 return GGL_ERR_OK;
             }
         }
 
         GGL_LOGE(
-            "Failed to create log group '%.*s'",
-            (int) config.logGroup.len,
-            config.logGroup.data
+            "Failed to create %s '%.*s'",
+            ctx->resource_type,
+            (int) ctx->resource_name.len,
+            ctx->resource_name.data
         );
         if (response.pBody && response.bodyLen > 0) {
             GGL_LOGE(
@@ -636,94 +621,13 @@ static GglError slf_ensure_log_group_exists(
     }
 
     GGL_LOGI(
-        "Log group '%.*s' found/created successfully",
-        (int) config.logGroup.len,
-        config.logGroup.data
+        "%s '%.*s' found/created successfully",
+        ctx->resource_type,
+        (int) ctx->resource_name.len,
+        ctx->resource_name.data
     );
 
     return GGL_ERR_OK;
-}
-
-// Create a log stream
-static GglError slf_ensure_log_stream_exists(
-    SigV4Details sigv4_details, HttpEndpoint endpoint, Config config
-) {
-    char payload_buffer[512];
-    int ret = snprintf(
-        payload_buffer,
-        sizeof(payload_buffer),
-        "{\"logGroupName\":\"%.*s\",\"logStreamName\":\"%.*s\"}",
-        (int) config.logGroup.len,
-        config.logGroup.data,
-        (int) config.logStream.len,
-        config.logStream.data
-    );
-    if (ret < 0 || ret >= (int) sizeof(payload_buffer)) {
-        GGL_LOGE("Payload buffer too small for log stream creation");
-        return GGL_ERR_FAILURE;
-    }
-
-    GglBuffer payload
-        = { .data = (uint8_t *) payload_buffer, .len = strlen(payload_buffer) };
-
-    GGL_LOGI(
-        "Creating log stream '%.*s' in group '%.*s'",
-        (int) config.logStream.len,
-        config.logStream.data,
-        (int) config.logGroup.len,
-        config.logGroup.data
-    );
-
-    HTTPResponse_t create_response = { 0 };
-    GglError result = send_http_request(
-        endpoint,
-        payload,
-        sigv4_details,
-        "Logs_20140328.CreateLogStream",
-        &create_response
-    );
-
-    if (result != GGL_ERR_OK) {
-        // Check if it's just because the log stream already exists
-        if (create_response.pBody && create_response.bodyLen > 0) {
-            GglBuffer response_buf
-                = { .data = (uint8_t *) create_response.pBody,
-                    .len = create_response.bodyLen };
-            if (ggl_buffer_contains(
-                    response_buf,
-                    GGL_STR("ResourceAlreadyExistsException"),
-                    NULL
-                )) {
-                GGL_LOGD(
-                    "Log stream '%.*s' already exists",
-                    (int) config.logStream.len,
-                    config.logStream.data
-                );
-                return GGL_ERR_OK;
-            }
-        }
-        GGL_LOGE(
-            "Failed to create log stream '%.*s'",
-            (int) config.logStream.len,
-            config.logStream.data
-        );
-        if (create_response.pBody && create_response.bodyLen > 0) {
-            GGL_LOGE(
-                "Error response: %.*s",
-                (int) create_response.bodyLen,
-                (char *) create_response.pBody
-            );
-        }
-        return result;
-    }
-
-    GGL_LOGI(
-        "Log stream '%.*s' found/created successfully",
-        (int) config.logStream.len,
-        config.logStream.data
-    );
-
-    return result;
 }
 
 static GglError slf_build_endpoint(
@@ -766,15 +670,62 @@ static bool slf_is_resource_not_found(HTTPResponse_t response) {
     );
 }
 
+static GglError slf_build_resource_payload(
+    GglByteVec *payload, Config config, bool include_stream
+) {
+    payload->buf.len = 0;
+    GglError ret
+        = ggl_byte_vec_append(payload, GGL_STR("{\"logGroupName\":\""));
+    ggl_byte_vec_chain_append(&ret, payload, config.logGroup);
+
+    if (include_stream) {
+        ggl_byte_vec_chain_append(
+            &ret, payload, GGL_STR("\",\"logStreamName\":\"")
+        );
+        ggl_byte_vec_chain_append(&ret, payload, config.logStream);
+    }
+
+    ggl_byte_vec_chain_append(&ret, payload, GGL_STR("\"}"));
+    return ret;
+}
+
 static GglError slf_create_resources(
     SigV4Details sigv4_details, HttpEndpoint endpoint, Config config
 ) {
-    GglError ret = slf_ensure_log_group_exists(sigv4_details, endpoint, config);
+    static uint8_t payload_mem[512];
+    GglByteVec payload = GGL_BYTE_VEC(payload_mem);
+
+    // Create log group
+    GglError ret = slf_build_resource_payload(&payload, config, false);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to build log group payload");
+        return ret;
+    }
+
+    EnsureResourceCtx group_ctx = { .payload = payload.buf,
+                                    .target = "Logs_20140328.CreateLogGroup",
+                                    .resource_type = "Log group",
+                                    .resource_name = config.logGroup };
+
+    ret = slf_ensure_resource_exists(sigv4_details, endpoint, &group_ctx);
     if (ret != GGL_ERR_OK) {
         return ret;
     }
 
-    return slf_ensure_log_stream_exists(sigv4_details, endpoint, config);
+    payload = GGL_BYTE_VEC(payload_mem);
+    // Create log stream
+    ret = slf_build_resource_payload(&payload, config, true);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to build log stream payload");
+        return ret;
+    }
+
+    EnsureResourceCtx stream_ctx = { .payload = payload.buf,
+                                     .target = "Logs_20140328.CreateLogStream",
+                                     .resource_type = "Log stream",
+                                     .resource_name = config.logStream };
+
+    return slf_ensure_resource_exists(sigv4_details, endpoint, &stream_ctx);
 }
 
 GglError slf_upload_logs_to_cloud_watch(
