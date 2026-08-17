@@ -1,0 +1,151 @@
+name: UAT System Log Forwarder
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      testing_repo:
+        description: "Testing repository to use as source of tests"
+        required: false
+      testing_repo_ref:
+        description: "Ref (branch) on the testing repo to use"
+        required: false
+      lite_repo:
+        description: "gg-lite repository to build against"
+        required: false
+      lite_repo_ref:
+        description: "Ref (branch) on the gg-lite repo to use"
+        required: false
+
+# Share the concurrency lane with lite/testing repos so UAT runs serialize
+# globally on the shared AWS account.
+concurrency:
+  group: uat-component-tests
+  cancel-in-progress: false
+
+jobs:
+  list-tests:
+    if:
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name ==
+      'aws-greengrass/aws-greengrass-system-log-forwarder'
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    outputs:
+      tests: ${{ steps.list.outputs.tests }}
+    steps:
+      - name: Checkout testing repository
+        uses: actions/checkout@v7
+        with:
+          repository:
+            ${{ github.event.inputs.testing_repo ||
+            'aws-greengrass/aws-greengrass-testing' }}
+          ref: ${{ github.event.inputs.testing_repo_ref || 'main' }}
+          path: aws-greengrass-testing
+
+      - name: List all tests
+        id: list
+        run: |
+          tests=$(grep -oE '^def (test_[A-Za-z0-9_]+)' \
+            aws-greengrass-testing/src/aws-greengrass-testing-system-log-forwarder.py \
+            | sed 's/^def //' | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "tests=$tests" >> $GITHUB_OUTPUT
+
+  uat-test:
+    if:
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name ==
+      'aws-greengrass/aws-greengrass-system-log-forwarder'
+    needs: list-tests
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        test: ${{ fromJson(needs.list-tests.outputs.tests) }}
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-22.04
+    timeout-minutes: 65
+
+    steps:
+      - name: Stagger start to decorrelate parallel AWS API bursts
+        run: sleep $(( RANDOM % 30 ))
+        shell: bash
+
+      - name: Checkout system-log-forwarder repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ">=3.12"
+
+      - name: Checkout testing repository
+        uses: actions/checkout@v7
+        with:
+          repository:
+            ${{ github.event.inputs.testing_repo ||
+            'aws-greengrass/aws-greengrass-testing' }}
+          ref: ${{ github.event.inputs.testing_repo_ref || 'main' }}
+          path: aws-greengrass-testing
+
+      - name: Checkout lite repository
+        uses: actions/checkout@v7
+        with:
+          repository:
+            ${{ github.event.inputs.lite_repo ||
+            'aws-greengrass/aws-greengrass-lite' }}
+          ref: ${{ github.event.inputs.lite_repo_ref || 'main' }}
+          path: aws-greengrass-lite
+
+      - name: Build system-log-forwarder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libssl-dev libsystemd-dev
+          cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DGGL_LOG_LEVEL=INFO
+          make -C build -j$(nproc)
+          strip build/bin/system-log-forwarder
+
+      - name: Place binary into testing component artifacts
+        run: |
+          ARTIFACT_DIR="aws-greengrass-testing/components/aws.greengrass.SystemLogForwarderTest/0.1.0/artifacts"
+          mkdir -p "$ARTIFACT_DIR"
+          cp build/bin/system-log-forwarder "$ARTIFACT_DIR/system-log-forwarder"
+
+      - name: Get temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          audience: sts.amazonaws.com
+          aws-region: us-west-2
+          role-to-assume: arn:aws:iam::832850273037:role/GGL-UAT-GH-Role
+          role-duration-seconds: 3900
+          unset-current-credentials: true
+
+      - name: Set commit SHA
+        run: |
+          echo "SHA=$(git -C aws-greengrass-lite rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Run UAT test
+        run: |
+          cd aws-greengrass-testing
+          ./run-tests.sh \
+            --aws-account=832850273037 \
+            --s3-bucket=lite-uat-bucket \
+            --commit-id=${{ env.SHA }} \
+            --aws-region=us-west-2 \
+            --test-category=system-log-forwarder \
+            --test-name=${{ matrix.test }}
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: uat-test-logs-${{ matrix.test }}
+          path: /tmp/aws-greengrass-testing-workspace/
+          retention-days: 7
